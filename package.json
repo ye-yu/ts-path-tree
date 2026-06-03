@@ -1,7 +1,7 @@
 {
-  "name": "node-typescript-no-transpiler-template",
+  "name": "path-tree",
   "version": "1.0.0",
-  "description": "",
+  "description": "Build and match path trees with parameters, wildcards, and optional route segments.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -14,15 +14,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ye-yu/node-typescript-no-transpiler-template.git"
+    "url": "git+https://github.com/ye-yu/ts-path-tree.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/ye-yu/node-typescript-no-transpiler-template/issues"
+    "url": "https://github.com/ye-yu/ts-path-tree/issues"
   },
-  "homepage": "https://github.com/ye-yu/node-typescript-no-transpiler-template#readme",
+  "homepage": "https://github.com/ye-yu/ts-path-tree#readme",
   "devDependencies": {
     "@types/node": "^22.19.19",
     "@typescript/native-preview": "^7.0.0-dev.20260511.1"

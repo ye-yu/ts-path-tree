@@ -1,27 +1,55 @@
-# node-typescript-no-transpiler-template
-Absolute minimal setup for typescript projects without bundler because node v22.18.0 already enabled type striping by default.
+# path-tree
 
-Don't forget to use VSCode extension for [TypeScript Native Preview](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview).
+A tiny TypeScript path tree matcher for static routes, optional groups, named parameters, and wildcards.
 
-Note: decorator functionalities are not natively supported. From [Node documentation](https://nodejs.org/api/typescript.html#type-stripping):
+## Quick usage
 
-> Since Decorators are currently a [TC39 Stage 3 proposal](https://github.com/tc39/proposal-decorators), they are not transformed and will result in a parser error. Node.js does not provide polyfills and thus will not support decorators until they are supported natively in JavaScript.
+```ts
+import { PathTree } from "ts-path-tree"
 
-To allow decorators, you must perform compilation anyway. However, `tsgo` is able to do this blazingly fast anyway. Just apply option:
+const tree = new PathTree<string>()
 
-```json5
-// ...
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true,
+// register patterns
+tree.setPattern("/a/b{/d}/hello", (_, value) => value ?? "hello")
+tree.setPattern("/a/b/:name/hello", (_, value) => value ?? "hello from name")
+tree.setPattern("/a/b/*all", (_, value) => value ?? "hello from all")
 
-        // for easier build management
-        "rootDir": "src",
-        "outDir": "dist",
-// ...
+// match a pathname
+const matches = tree.match("/a/b/d/hello")
+for (const { node, params, segments } of matches) {
+  console.log(node.value)
+  console.log(params)
+  console.log(segments)
+}
+
+// get the matching pattern strings
+const patterns = tree.matchPattern("/a/b/d/hello")
+console.log([...patterns])
 ```
 
-And don't forget to install the compiler:
+## What these methods do
 
-```sh
-npm install @typescript/native-preview
-```
+- `setPattern(pattern, mapper)` registers a route pattern and stores a value via the mapper callback.
+- `match(pathname)` returns all matching route results, including parameter values and route segments.
+- `matchPattern(pathname)` returns a `Set<string>` of the original pattern strings that matched.
+
+### Example behaviors
+
+- `/a/b{/d}/hello` matches both `/a/b/hello` and `/a/b/d/hello`
+- `:name` captures a single named segment
+- `*all` captures a wildcard path segment sequence
+
+## Appendix — API overview
+
+- `new PathTree<T>()`
+- `setPattern(pattern: string, mapper: (segments: string[], value?: T) => T): void`
+- `match(pathname: string): TraverseResult<T>[]`
+- `matchPattern(pathname: string): Set<string>`
+- `printTree(): void`
+
+### Path syntax
+
+- static text: `/users`
+- named parameter: `/:id`
+- wildcard: `/*rest`
+- optional group: `{/segment}`
