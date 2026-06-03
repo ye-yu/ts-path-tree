@@ -40,6 +40,7 @@ export class PathNode<V> {
   value?: V
   wildcard?: boolean
   param?: boolean
+  expandedFrom?: string
 
   constructor(name: string, parent?: PathNode<V>) {
     this.name = name
@@ -119,6 +120,10 @@ export class PathTree<T> {
           break
         }
       }
+    }
+
+    for (const { node } of nodes) {
+      node.expandedFrom = pattern
     }
     return nodes
   }
@@ -233,6 +238,12 @@ export class PathTree<T> {
     }
 
     return matched.map(e => ({ ...e, segments: [...e.segments, e.node.name] }))
+  }
+
+  matchPattern(pathname: string): Set<string> {
+    const matches = this.match(pathname)
+    const filtered = matches.map(e => e.node.expandedFrom ?? '').filter(e => e)
+    return new Set(filtered)
   }
 
   *printTreeIterator(recursed?: {
@@ -399,7 +410,7 @@ export class PathTree<T> {
         if (matched.at(-1)?.token === "param" || matched.at(-1)?.token === "wildcard") {
           throw new Error(`Unexpected next tokens : of ${split} in path ${parent ?? pathname}`)
         }
-        
+
         const wildcard = wildcards[0]
         matched.push({ token: "wildcard", param: `*${wildcard}` })
         continue
