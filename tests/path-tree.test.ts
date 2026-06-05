@@ -3,6 +3,36 @@ import { beforeEach, describe, it } from "node:test"
 import { PathTree } from "../src/path-tree.ts"
 
 describe("PathTree", () => {
+  describe('pedantic', () => {
+    const root = new PathTree()
+    root.setPattern('/users/action')
+    root.setPattern('/users/action/')
+    root.setPattern('users/action')
+    root.setPattern('users/action/')
+
+    it('should only match one', () => {
+      {
+        const matches = root.match('/users/action')
+        assert.ok(matches.length === 1)
+        assert.equal(matches[0].pattern, '/users/action')
+      }
+      {
+        const matches = root.match('/users/action/')
+        assert.ok(matches.length === 1)
+        assert.equal(matches[0].pattern, '/users/action/')
+      }
+      {
+        const matches = root.match('users/action')
+        assert.ok(matches.length === 1)
+        assert.equal(matches[0].pattern, 'users/action')
+      }
+      {
+        const matches = root.match('users/action/')
+        assert.ok(matches.length === 1)
+        assert.equal(matches[0].pattern, 'users/action/')
+      }
+    })
+  })
   describe('match', () => {
     let root!: PathTree
 
@@ -34,6 +64,22 @@ describe("PathTree", () => {
       assert.ok(results.has("/a/b{/d}/hello"), [...results].join(', '))
       assert.ok(results.has("/a/b{/:name}/hello"), [...results].join(', '))
       assert.ok(results.has("/a/b{/:another}/hello"), [...results].join(', '))
+    })
+
+    it('should reject invalid consecutive params', () => {
+      assert.throws(
+        () => {
+          root.setPattern('/users/:id:action')
+        },
+        /Unexpected consecutive parameter tokens : :action/
+      )
+    })
+
+    it('should collect repeated param names as multiple values', () => {
+      root.setPattern('/users/:id/follow/:id')
+
+      const [result] = root.match('/users/1/follow/2')
+      assert.deepEqual(result.params, { ':id': ['1', '2'] })
     })
   })
 
