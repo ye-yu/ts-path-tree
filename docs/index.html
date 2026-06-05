@@ -6,64 +6,226 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PathTree Playground</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       margin: 0;
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
     }
-    h1, p {
-        padding-left: 1rem;
-        padding-right: 1rem;
+    header {
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 1.5rem;
     }
-    .container {
+    h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.8rem;
+      color: #333;
+    }
+    .header-links {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .header-links a {
+      color: #0969da;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .header-links a:hover {
+      text-decoration: underline;
+    }
+    .description {
+      color: #555;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+    
+    .main-container {
       display: flex;
       flex-direction: row;
-      height: 80vh;
+      gap: 0;
+      min-height: calc(100vh - 200px);
     }
 
     /* Mobile view: stack panels vertically */
     @media (max-width: 768px) {
-      .container {
+      .main-container {
         flex-direction: column;
-        height: auto; /* let panels size naturally */
+        min-height: auto;
       }
       .panel {
         width: 100%;
-        height: auto;
       }
     }
 
     .panel {
       flex: 1;
-      padding: 1rem;
-      box-sizing: border-box;
+      padding: 1.5rem;
+      background: white;
+      overflow-y: auto;
     }
+    .panel#left {
+      border-right: 1px solid #e0e0e0;
+    }
+    @media (max-width: 768px) {
+      .panel#left {
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+      }
+      .interactive-section {
+        order: 2;
+      }
+      .docs-container {
+        order: 1;
+      }
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      color: #333;
+    }
+
     textarea {
       width: 100%;
       height: 60%;
-      min-height: 150px; /* ensures usable space */
-      box-sizing: border-box;
+      min-height: 150px;
+      padding: 0.75rem;
       margin-bottom: 1rem;
-      resize: vertical; /* allow manual resize if desired */
+      resize: vertical;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.9rem;
     }
+    textarea:focus {
+      outline: none;
+      border-color: #0969da;
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+    }
+
     input {
       width: 100%;
-      box-sizing: border-box;
-      padding: 0.5rem;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.9rem;
     }
-    ul {
-      padding-left: 1.2rem;
+    input:focus {
+      outline: none;
+      border-color: #0969da;
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+    }
+
+    #matches {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    #matches li {
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      background: #f5f5f5;
+      border-left: 3px solid #0969da;
+      border-radius: 2px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+
+    .docs-section {
+      margin-bottom: 2rem;
+    }
+    .docs-section h4 {
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+      color: #333;
+      font-size: 0.95rem;
+    }
+    .docs-section p {
+      margin: 0.5rem 0;
+      color: #555;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .code-example {
+      background: #f5f5f5;
+      padding: 0.75rem;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+      overflow-x: auto;
+    }
+    .syntax-list {
+      margin: 0.5rem 0;
+      padding-left: 1.5rem;
+    }
+    .syntax-list li {
+      margin: 0.25rem 0;
+      color: #555;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
-  <h1>PathTree Playground</h1>
-  <p>Build and match path trees with parameters, wildcards, and optional route segments.</p>
-  <p>Install: npm install path-tree-matcher</p>
-  <div class="container">
-    <div class="panel" id="left">
-      <textarea id="patterns" placeholder="Enter patterns, one per line"></textarea>
-      <input id="testInput" placeholder="Enter test pathname" />
+  <header>
+    <h1>PathTree Playground</h1>
+    <div class="header-links">
+      <a href="https://www.npmjs.com/package/path-tree-matcher" target="_blank">📦 npm package</a>
+      <a href="https://github.com/ye-yu/ts-path-tree-matcher#readme" target="_blank">🔗 GitHub repository</a>
     </div>
+    <p class="description">
+      A tiny TypeScript path tree matcher for static routes, named parameters, wildcards, and optional groups.
+    </p>
+  </header>
+
+  <div class="main-container">
+    <div class="panel" id="left">
+      <div class="docs-container">
+        <div class="docs-section">
+          <h4>📖 Path Syntax</h4>
+          <ul class="syntax-list">
+            <li><code>/users</code> — static text</li>
+            <li><code>/:id</code> — named parameter</li>
+            <li><code>/*rest</code> — wildcard</li>
+            <li><code>{/segment}</code> — optional group</li>
+          </ul>
+        </div>
+
+        <div class="docs-section">
+          <h4>💡 Examples</h4>
+          <p><code>/a/b{/d}/hello</code> matches both <code>/a/b/hello</code> and <code>/a/b/d/hello</code></p>
+          <p><code>/blog/:year/:slug</code> captures year and slug parameters</p>
+          <p><code>/api/posts/:id/*rest</code> captures post ID and remaining path</p>
+        </div>
+
+        <div class="docs-section">
+          <h4>🚀 Quick Start</h4>
+          <div class="code-example">npm install path-tree-matcher</div>
+          <p>Import and create a tree instance:</p>
+          <div class="code-example">
+import { PathTree } from "path-tree-matcher"<br/>
+const tree = new PathTree()<br/>
+tree.setPattern("/api/users/:id")<br/>
+const matches = tree.match("/api/users/123")
+          </div>
+        </div>
+      </div>
+
+      <div class="interactive-section">
+        <h3>Build Pattern Tree</h3>
+        <textarea id="patterns" placeholder="Enter patterns, one per line"></textarea>
+        <input id="testInput" placeholder="Enter test pathname" />
+      </div>
+    </div>
+
     <div class="panel" id="right">
       <h3>Matching Patterns</h3>
       <ul id="matches"></ul>
@@ -391,7 +553,7 @@ export class PathTree {
     }
     return matched
   }
-}`;
+}`; 
     const blob = new Blob([code], { type: "application/javascript" });
     const url = URL.createObjectURL(blob);
     const { PathTree } = await import(url);

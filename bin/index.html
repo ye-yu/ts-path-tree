@@ -1,0 +1,304 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PathTree Playground</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+    }
+    header {
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 1.5rem;
+    }
+    h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.8rem;
+      color: #333;
+    }
+    .header-links {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .header-links a {
+      color: #0969da;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .header-links a:hover {
+      text-decoration: underline;
+    }
+    .description {
+      color: #555;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+    
+    .main-container {
+      display: flex;
+      flex-direction: row;
+      gap: 0;
+      min-height: calc(100vh - 200px);
+    }
+
+    /* Mobile view: stack panels vertically */
+    @media (max-width: 768px) {
+      .main-container {
+        flex-direction: column;
+        min-height: auto;
+      }
+      .panel {
+        width: 100%;
+      }
+    }
+
+    .panel {
+      flex: 1;
+      padding: 1.5rem;
+      background: white;
+      overflow-y: auto;
+    }
+    .panel#left {
+      border-right: 1px solid #e0e0e0;
+    }
+    @media (max-width: 768px) {
+      .panel#left {
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+      }
+      .interactive-section {
+        order: 2;
+      }
+      .docs-container {
+        order: 1;
+      }
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    textarea {
+      width: 100%;
+      height: 60%;
+      min-height: 150px;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      resize: vertical;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #0969da;
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+    }
+
+    input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+    input:focus {
+      outline: none;
+      border-color: #0969da;
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+    }
+
+    #matches {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    #matches li {
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      background: #f5f5f5;
+      border-left: 3px solid #0969da;
+      border-radius: 2px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+
+    .docs-section {
+      margin-bottom: 2rem;
+    }
+    .docs-section h4 {
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+      color: #333;
+      font-size: 0.95rem;
+    }
+    .docs-section p {
+      margin: 0.5rem 0;
+      color: #555;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .code-example {
+      background: #f5f5f5;
+      padding: 0.75rem;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.85rem;
+      margin: 0.5rem 0;
+      overflow-x: auto;
+    }
+    .syntax-list {
+      margin: 0.5rem 0;
+      padding-left: 1.5rem;
+    }
+    .syntax-list li {
+      margin: 0.25rem 0;
+      color: #555;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PathTree Playground</h1>
+    <div class="header-links">
+      <a href="https://www.npmjs.com/package/path-tree-matcher" target="_blank">📦 npm package</a>
+      <a href="https://github.com/ye-yu/ts-path-tree-matcher#readme" target="_blank">🔗 GitHub repository</a>
+    </div>
+    <p class="description">
+      A tiny TypeScript path tree matcher for static routes, named parameters, wildcards, and optional groups.
+    </p>
+  </header>
+
+  <div class="main-container">
+    <div class="panel" id="left">
+      <div class="docs-container">
+        <div class="docs-section">
+          <h4>📖 Path Syntax</h4>
+          <ul class="syntax-list">
+            <li><code>/users</code> — static text</li>
+            <li><code>/:id</code> — named parameter</li>
+            <li><code>/*rest</code> — wildcard</li>
+            <li><code>{/segment}</code> — optional group</li>
+          </ul>
+        </div>
+
+        <div class="docs-section">
+          <h4>💡 Examples</h4>
+          <p><code>/a/b{/d}/hello</code> matches both <code>/a/b/hello</code> and <code>/a/b/d/hello</code></p>
+          <p><code>/blog/:year/:slug</code> captures year and slug parameters</p>
+          <p><code>/api/posts/:id/*rest</code> captures post ID and remaining path</p>
+        </div>
+
+        <div class="docs-section">
+          <h4>🚀 Quick Start</h4>
+          <div class="code-example">npm install path-tree-matcher</div>
+          <p>Import and create a tree instance:</p>
+          <div class="code-example">
+import { PathTree } from "path-tree-matcher"<br/>
+const tree = new PathTree()<br/>
+tree.setPattern("/api/users/:id")<br/>
+const matches = tree.match("/api/users/123")
+          </div>
+        </div>
+      </div>
+
+      <div class="interactive-section">
+        <h3>Build Pattern Tree</h3>
+        <textarea id="patterns" placeholder="Enter patterns, one per line"></textarea>
+        <input id="testInput" placeholder="Enter test pathname" />
+      </div>
+    </div>
+
+    <div class="panel" id="right">
+      <h3>Matching Patterns</h3>
+      <ul id="matches"></ul>
+    </div>
+  </div>
+
+  <script type="module">
+    // Load your stripped module dynamically
+    const code = /* code */; 
+    const blob = new Blob([code], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    const { PathTree } = await import(url);
+
+    // Simple debounce helper
+    function debounce(fn, delay = 100) {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+      };
+    }
+
+    const patternsEl = document.getElementById("patterns");
+    const testEl = document.getElementById("testInput");
+    const matchesEl = document.getElementById("matches");
+
+    let tree = new PathTree();
+
+    // Rebuild PathTree whenever patterns change
+    const rebuildTree = debounce(() => {
+      tree = new PathTree();
+      localStorage.setItem("patterns", patternsEl.value);
+      const lines = patternsEl.value.split("\n").map(l => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        tree.setPattern(line);
+      }
+      updateMatches();
+    });
+
+    // Update matches whenever test input changes
+    const updateMatches = debounce(() => {
+      const path = testEl.value.trim();
+      matchesEl.innerHTML = "";
+      if (!path) return;
+      const results = tree.match(path);
+      for (const r of results) {
+        const li = document.createElement("li");
+        li.textContent = r.pattern;
+        matchesEl.appendChild(li);
+      }
+    });
+
+    patternsEl.addEventListener("input", rebuildTree);
+    testEl.addEventListener("input", updateMatches);
+
+    patternsEl.value = localStorage.getItem("patterns") || [
+      "/",                        // root
+      "/about",                   // static page
+      "/contact",                 // static page
+      "/users/:id",               // user profile
+      "/posts/:postId",           // blog post
+      "/products/:sku",           // product detail
+      "/blog/:year/:slug",        // nested params
+      // --- API endpoints ---
+      "/api/users",               // list users
+      "/api/users/:id",           // get user by id
+      "/api/posts",               // list posts
+      "/api/posts/:postId",       // get post by id
+      "/api/posts/:postId/comments", // nested resource
+      "/api/products/:sku/reviews"   // product reviews
+    ].join("\n");
+    rebuildTree();
+
+  </script>
+</body>
+</html>

@@ -2,6 +2,8 @@
 
 A tiny TypeScript path tree matcher for static routes, optional groups, named parameters, and wildcards.
 
+🎮 **[Try the Playground](https://ye-yu.github.io/ts-path-tree-matcher/)**
+
 ## Quick usage
 
 ```ts
