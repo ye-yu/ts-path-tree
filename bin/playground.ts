@@ -1,6 +1,16 @@
 import * as module from "node:module"
 import * as http from "node:http"
 import * as fs from "node:fs"
+import * as util from "node:util"
+
+const { values } = util.parseArgs({
+  options: {
+    "host": {
+      short: "h",
+      type: "string"
+    }
+  }
+})
 
 const sourcePath = './src/path-tree.ts'
 const sourceCode = fs.readFileSync(sourcePath, 'utf-8')
@@ -106,7 +116,7 @@ const html = `
       localStorage.setItem("patterns", patternsEl.value);
       const lines = patternsEl.value.split("\\n").map(l => l.trim()).filter(Boolean);
       for (const line of lines) {
-        tree.setPattern(line, () => true);
+        tree.setPattern(line);
       }
       updateMatches();
     });
@@ -116,10 +126,10 @@ const html = `
       const path = testEl.value.trim();
       matchesEl.innerHTML = "";
       if (!path) return;
-      const results = tree.matchPattern(path);
+      const results = tree.match(path);
       for (const r of results) {
         const li = document.createElement("li");
-        li.textContent = r;
+        li.textContent = r.pattern;
         matchesEl.appendChild(li);
       }
     });
@@ -148,10 +158,18 @@ const html = `
   </script>
 </body>
 </html>
-
 `
 
-const server = http.createServer((req, res) => {
+const docsDir = "./docs"
+const docsIndex = "./docs/index.html"
+
+fs.mkdirSync(docsDir, { recursive: true })
+fs.writeFileSync(docsIndex, html)
+console.log("Updated docs/index.html")
+
+if (!values.host) process.exit(0)
+
+const server = http.createServer((_, res) => {
   res.writeHead(200, { 'Content-Type': 'text/html' })
   res.end(html)
 })

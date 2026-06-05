@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "test": "node --test",
-    "build": "tsgo -p tsconfig.build.json"
+    "build": "tsgo -p tsconfig.build.json && node ./bin/playground.ts"
   },
   "repository": {
     "type": "git",
