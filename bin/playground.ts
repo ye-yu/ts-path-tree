@@ -76,7 +76,7 @@ const html = `
 <body>
   <h1>PathTree Playground</h1>
   <p>Build and match path trees with parameters, wildcards, and optional route segments.</p>
-  <p>Install: npm install path-tree</p>
+  <p>Install: npm install path-tree-matcher</p>
   <div class="container">
     <div class="panel" id="left">
       <textarea id="patterns" placeholder="Enter patterns, one per line"></textarea>

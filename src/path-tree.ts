@@ -4,9 +4,9 @@ export type Token =
   | { token: string, type: "literal" }
 export type TokenType = Token["type"]
 
-type MatchResult = { pattern: string, params: Record<string, string[]> }
+export type MatchResult = { pattern: string, params: Record<string, string[]> }
 
-type PathNode = {
+export type PathNode = {
   literals: Record<string, PathNode>,
   params: Record<string, PathNode>,
   wildcards: Record<string, PathNode>,

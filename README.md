@@ -1,11 +1,11 @@
-# path-tree
+# path-tree-matcher
 
 A tiny TypeScript path tree matcher for static routes, optional groups, named parameters, and wildcards.
 
 ## Quick usage
 
 ```ts
-import { PathTree } from "path-tree"
+import { PathTree } from "path-tree-matcher"
 
 const tree = new PathTree()
 

@@ -1,5 +1,5 @@
 {
-  "name": "path-tree",
+  "name": "path-tree-matcher",
   "version": "1.0.0",
   "description": "Build and match path trees with parameters, wildcards, and optional route segments.",
   "main": "dist/index.js",
@@ -14,15 +14,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ye-yu/ts-path-tree.git"
+    "url": "git+https://github.com/ye-yu/ts-path-tree-matcher.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/ye-yu/ts-path-tree/issues"
+    "url": "https://github.com/ye-yu/ts-path-tree-matcher/issues"
   },
-  "homepage": "https://github.com/ye-yu/ts-path-tree#readme",
+  "homepage": "https://github.com/ye-yu/ts-path-tree-matcher#readme",
   "devDependencies": {
     "@types/node": "^22.19.19",
     "@typescript/native-preview": "^7.0.0-dev.20260511.1"
