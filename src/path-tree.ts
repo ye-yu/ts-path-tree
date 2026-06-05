@@ -86,6 +86,39 @@ export class PathTree {
     currentNode.expandedFrom.push(expandedFrom ?? path)
   }
 
+  collectLiterals(node: PathNode) {
+    let toIterate: { startToken: string, lastNode: PathNode, finished?: true }[] = Object.entries(node.literals).map(([token, node]) => ({
+      startToken: token,
+      lastNode: node,
+    }))
+
+    let iterateNext: { startToken: string, lastNode: PathNode, finished?: true }[]
+    const finished: { startToken: string, lastNode: PathNode, finished?: true }[] = []
+
+    while (toIterate.length) {
+      iterateNext = []
+      for (const c of toIterate) {
+        for (const [token, node] of Object.entries(c.lastNode.literals)) {
+          iterateNext.push({
+            startToken: c.startToken + token,
+            lastNode: node
+          })
+        }
+
+        if (
+          Object.entries(c.lastNode.params).length
+          || Object.entries(c.lastNode.wildcards).length
+          || Object.entries(c.lastNode.groups).length
+          || c.lastNode.expandedFrom.length) {
+          finished.push({ ...c })
+        }
+      }
+      toIterate = iterateNext
+    }
+
+    return finished
+  }
+
   *matchRecursive(path: string, root: PathNode = this.root, param: Record<string, string[]> = {}): Generator<MatchResult> {
     for (const [token, node] of Object.entries(root.literals)) {
       if (path === token) {
@@ -119,37 +152,49 @@ export class PathTree {
       }
     }
 
-    const wcEntries = Object.entries(root.wildcards)
-    if (wcEntries.length) {
-      const splitted = this.parsePathTree(path)
-      let joined = ''
-      for (const { token } of splitted) {
-        joined += token
-        for (const [token, node] of wcEntries) {
-          // must match literal next after '/'
-          for (const [nextToken, nextNode] of Object.entries(node.literals)) {
-            const index = lastIndexOf(joined, nextToken)
-            if (index === -1) continue
-            const paramValue = joined.slice(0, index)
-            const newParam = {
-              ...param,
-              [token]: [...(param[token] ?? []), paramValue]
-            }
-            yield* this.matchRecursive(joined.slice(index + 1), nextNode, newParam)
+    for (const [token, node] of Object.entries(root.wildcards)) {
+      const nextLiterals = this.collectLiterals(node)
+      if (!nextLiterals.length) {
+        const newParam = {
+          ...param,
+          [token]: [...(param[token] ?? []), path]
+        }
+        yield* node.expandedFrom.map(p => {
+          return { pattern: p, params: newParam }
+        })
+      } else {
+        for (const { startToken, lastNode } of nextLiterals) {
+          const index = path.indexOf(startToken)
+          if (index === -1) continue
+          const paramValue = path.slice(0, index)
+          const newParam = {
+            ...param,
+            [token]: [...(param[token] ?? []), paramValue]
           }
-          // else match the rest of the joined
-          if (joined === path) {
-            const newParam = {
-              ...param,
-              [token]: [...(param[token] ?? []), joined]
-            }
-            yield* node.expandedFrom.map(p => {
+
+          const nextPath = path.slice(index + startToken.length)
+          if (nextPath) {
+            yield* this.matchRecursive(nextPath, lastNode, newParam)
+          } else {
+            yield* lastNode.expandedFrom.map(p => {
               return { pattern: p, params: newParam }
             })
           }
         }
+        // Also check if the wildcard node itself is a terminal (has expandedFrom)
+        // This handles cases where the wildcard matches everything
+        if (node.expandedFrom.length) {
+          const newParam = {
+            ...param,
+            [token]: [...(param[token] ?? []), path]
+          }
+          yield* node.expandedFrom.map(p => {
+            return { pattern: p, params: newParam }
+          })
+        }
       }
     }
+
 
     for (const [_, node] of Object.entries(root.groups)) {
       yield* this.matchRecursive(path, node, { ...param })

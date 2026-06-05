@@ -7,7 +7,7 @@ const { values } = util.parseArgs({
   options: {
     "host": {
       short: "h",
-      type: "string"
+      type: "boolean"
     }
   }
 })
