@@ -1,5 +1,5 @@
 import assert from "node:assert"
-import { describe, it } from "node:test"
+import { beforeEach, describe, it } from "node:test"
 import { PathTree } from "../src/path-tree.ts"
 
 describe("PathTree", () => {
@@ -123,21 +123,36 @@ describe("PathTree", () => {
   })
 
   describe('matchPattern', () => {
-    const root = new PathTree<string>()
+    let root!: PathTree<string>
 
-    root.setPattern("/a/b{/d}/hello", (_, value) => value ?? "hello")
-    root.setPattern("/a/b/:name/hello", (_, value) => value ?? "hello from name")
-    root.setPattern("/a/b/:name/hello", (_, value) => value ?? "hello from name renamed")
-    root.setPattern("/a/b/*name/hello", (_, value) => value ?? "hello from name star")
-    root.setPattern("/a/b/*all", (_, value) => value ?? "hello from all")
-    root.setPattern("/a/b/*all/and/*next", (_, value) => value ?? "hello from all next")
-
+    beforeEach(() => {
+      root = new PathTree<string>
+    })
     it('should return matching pattern', () => {
+      root.setPattern("/a/b{/d}/hello", (_, value) => value ?? "hello")
+      root.setPattern("/a/b/:name/hello", (_, value) => value ?? "hello from name")
+      root.setPattern("/a/b/:name/hello", (_, value) => value ?? "hello from name renamed")
+      root.setPattern("/a/b/*name/hello", (_, value) => value ?? "hello from name star")
+      root.setPattern("/a/b/*all", (_, value) => value ?? "hello from all")
+      root.setPattern("/a/b/*all/and/*next", (_, value) => value ?? "hello from all next")
+
       const results = root.matchPattern("/a/b/d/hello")
       assert.ok(results.has("/a/b{/d}/hello"))
       assert.ok(results.has("/a/b/:name/hello"))
       assert.ok(results.has("/a/b/*name/hello"))
       assert.ok(results.has("/a/b/*all"))
+    })
+
+    it('should match multiple matching group', () => {
+      root.setPattern("/a/b{/d}/hello", (_, value) => value ?? "hello")
+      root.setPattern("/a/b{/:name}/hello", (_, value) => value ?? "hello from name")
+      root.setPattern("/a/b{/:another}/hello", (_, value) => value ?? "hello from another")
+      root.setPattern("/a/b/other/hello", (_, value) => value ?? "hello")
+
+      const results = root.matchPattern("/a/b/d/hello")
+      assert.ok(results.has("/a/b{/d}/hello"), [...results].join(', '))
+      assert.ok(results.has("/a/b{/:name}/hello"), [...results].join(', '))
+      assert.ok(results.has("/a/b{/:another}/hello"), [...results].join(', '))
     })
   })
 
