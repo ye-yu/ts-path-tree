@@ -7,6 +7,11 @@ export type Token =
   | { value: string, token: "text" }
 export type TokenType = Token["token"]
 
+export type TokenV2 =
+  | { token: string, type: "param" | "wildcard" }
+  | { token: string, type: "group", groups: Token[] }
+  | { token: string, type: "literal" }
+
 class DefaultedMap<K, V> extends Map<K, V> {
   readonly defaultValue: (key: K) => V
 
@@ -417,6 +422,70 @@ export class PathTree<T> {
       }
 
       matched.push({ value: split, token: "text" })
+    }
+    return matched
+  }
+
+
+  parsePathTreeV2(pathname: string, parent?: string): TokenV2[] {
+    const splitted = this.parsePathIntoSegments(pathname)
+    const matched: TokenV2[] = []
+    for (const split of splitted) {
+      if (split.startsWith("{")) {
+        if (!split.endsWith("}")) {
+          throw new Error(`Unterminated group of ${split} in path ${parent ?? pathname}`)
+        }
+        const group = split.slice(1, -1)
+        matched.push({ token: split, type: "group", groups: this.parsePathTree(group, parent ?? pathname) })
+        continue
+      }
+
+      if (split.startsWith(":")) {
+        if (split.includes('*')) {
+          throw new Error(`Unexpected token * of ${split}... in path ${parent ?? pathname}`)
+        }
+
+        const [_, ...tokens] = split.split(':')
+        if (tokens.length > 1) {
+          throw new Error(`Unexpected next tokens : of ${split} in path ${parent ?? pathname}`)
+        }
+
+        if (!split.slice(1)) {
+          throw new Error(`Missing label of ${split} in path ${parent ?? pathname}`)
+        }
+
+        if (matched.at(-1)?.token === "param" || matched.at(-1)?.token === "wildcard") {
+          throw new Error(`Unexpected next tokens : of ${split} in path ${parent ?? pathname}`)
+        }
+
+        matched.push({ type: "param", token: split })
+        continue
+      }
+
+      if (split.includes('*')) {
+        if (split.includes(':')) {
+          throw new Error(`Unexpected token : of ${split}... in path ${parent ?? pathname}`)
+        }
+
+        const [_, ...wildcards] = split.split('*')
+        if (wildcards.length > 1) {
+          throw new Error(`Unexpected next token * of ${split}... in path ${parent ?? pathname}`)
+        }
+
+        if (!split.slice(1)) {
+          throw new Error(`Missing lable of ${split} in path ${parent ?? pathname}`)
+        }
+
+        if (matched.at(-1)?.token === "param" || matched.at(-1)?.token === "wildcard") {
+          throw new Error(`Unexpected next tokens : of ${split} in path ${parent ?? pathname}`)
+        }
+
+        const wildcard = wildcards[0]
+        matched.push({ type: "wildcard", token: `*${wildcard}` })
+        continue
+      }
+
+      matched.push({ token: split, type: "literal" })
     }
     return matched
   }
