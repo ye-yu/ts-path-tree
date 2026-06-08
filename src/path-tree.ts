@@ -215,9 +215,22 @@ export class PathTree {
     const groupEnd = '}'
     const paramDelimiter = ':'
     const wildcardDelimiter = '*'
+    const groupQuotation = '"'
 
     while (upper < pathname.length) {
-      if (pathname[upper] === groupStart) {
+      if (pathname[upper] === groupQuotation) {
+        if (pathname[lower] !== paramDelimiter && pathname[lower] !== wildcardDelimiter) {
+          if (pathname.slice(lower, upper)) {
+            yield pathname.slice(lower, upper)
+          }
+          lower = upper
+        }
+        do {
+          upper++
+        } while (upper < pathname.length && pathname[upper] !== groupQuotation)
+        yield pathname.slice(lower, ++upper)
+        lower = upper
+      } else if (pathname[upper] === groupStart) {
         if (depth === 0) {
           if (pathname.slice(lower, upper)) {
             yield pathname.slice(lower, upper)
@@ -250,6 +263,7 @@ export class PathTree {
       upper++
     }
 
+    upper = Math.min(upper, pathname.length)
     if (lower < upper) {
       yield pathname.slice(lower, upper)
     }

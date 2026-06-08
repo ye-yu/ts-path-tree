@@ -16,7 +16,22 @@
     "type": "git",
     "url": "git+https://github.com/ye-yu/ts-path-tree-matcher.git"
   },
-  "keywords": [],
+  "keywords": [
+    "path-matching",
+    "route-matcher",
+    "route-parser",
+    "path-tree",
+    "path-matcher",
+    "router",
+    "url-routing",
+    "named-parameters",
+    "wildcard-routing",
+    "optional-segments",
+    "typescript",
+    "node",
+    "trie",
+    "pattern-matching"
+  ],
   "author": "",
   "license": "ISC",
   "bugs": {

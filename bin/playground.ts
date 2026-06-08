@@ -12,13 +12,13 @@ const { values } = util.parseArgs({
   }
 })
 
+const htmlPath = './bin/index.html'
 function getHtml() {
   const sourcePath = './src/path-tree.ts'
   const sourceCode = fs.readFileSync(sourcePath, 'utf-8')
 
   const stripped = module.stripTypeScriptTypes(sourceCode)
   const escaped = `\`${stripped.replaceAll('`', '\\`').replaceAll('$', '\\$')}\``
-  const htmlPath = './bin/index.html'
   const htmlTemplate = fs.readFileSync(htmlPath, 'utf8')
   const html = htmlTemplate.replaceAll('/* code */', escaped)
   return html
@@ -42,7 +42,14 @@ server.listen(3000, () => {
   console.log('Server is running at http://localhost:3000')
 })
 
+const watcher = fs.watch(htmlPath, () => {
+  fs.mkdirSync(docsDir, { recursive: true })
+  fs.writeFileSync(docsIndex, getHtml())
+  console.log("Updated docs/index.html")
+})
+
 process.on('SIGINT', () => {
+  watcher.close()
   server.close(() => {
     console.log('Server stopped')
     process.exit(0)

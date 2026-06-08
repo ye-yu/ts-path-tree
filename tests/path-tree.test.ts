@@ -86,6 +86,23 @@ describe("PathTree", () => {
   describe('parsePathIntoSegments', () => {
     const root = new PathTree()
     const cases = [
+      // new cases added to handle quoted tokens and prefixed quoted tokens
+      {
+        input: '/api/"hello"',
+        expected: ['/', 'api', '/', '"hello"'],
+      },
+      {
+        input: '/api/start"end"next',
+        expected: ['/', 'api', '/', 'start', '"end"', 'next'],
+      },
+      {
+        input: '/api/data/:"something"',
+        expected: ['/', 'api', '/', 'data', '/', ':"something"'],
+      },
+      {
+        input: '/api/data/*"something"',
+        expected: ['/', 'api', '/', 'data', '/', '*"something"'],
+      },
       {
         input: '/api/:param',
         expected: ['/', 'api', '/', ':param'],

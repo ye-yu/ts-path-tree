@@ -196,6 +196,8 @@
             <li><code>/:id</code> — named parameter</li>
             <li><code>/*rest</code> — wildcard</li>
             <li><code>{/segment}</code> — optional group</li>
+            <li><code>/"hello"</code> — quoted segment preserved with quotes</li>
+            <li><code>/:"something"</code>, <code>/*"something"</code> — quoted param/wildcard tokens preserve prefixes</li>
           </ul>
         </div>
 
@@ -204,6 +206,7 @@
           <p><code>/a/b{/d}/hello</code> matches both <code>/a/b/hello</code> and <code>/a/b/d/hello</code></p>
           <p><code>/blog/:year/:slug</code> captures year and slug parameters</p>
           <p><code>/api/posts/:id/*rest</code> captures post ID and remaining path</p>
+          <p><code>/api/"hello"</code> treats <code>"hello"</code> as a quoted literal segment</p>
         </div>
 
         <div class="docs-section">
