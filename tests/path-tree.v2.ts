@@ -19,7 +19,7 @@ for (const pattern of patterns) {
   root.setPattern(pattern)
 }
 console.log('-----')
-// console.log(JSON.stringify(root, null, 2))
+console.log(JSON.stringify(root, null, 2))
 
 const testPaths = [
   "/api/v1/health",

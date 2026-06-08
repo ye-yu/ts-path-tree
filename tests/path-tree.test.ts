@@ -217,7 +217,7 @@ describe("PathTree", () => {
 
     for (const { input, expected } of cases) {
       it(`should parse ${input}`, () => {
-        const gen = root.parsePathIntoSegments(input)
+        const gen = root.splitPath(input)
         const actual = Array.from(gen)
         assert.deepEqual(actual, expected)
       })

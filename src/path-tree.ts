@@ -24,17 +24,6 @@ function newNode(): PathNode {
   }
 }
 
-function lastIndexOf(str: string, search: string): number {
-  let lastIndex = -1
-  let index = str.indexOf(search)
-  while (index !== -1) {
-    lastIndex = index
-    index = str.indexOf(search, index + 1)
-  }
-  return lastIndex
-}
-
-
 export class PathTree {
   root = newNode()
 
@@ -42,48 +31,62 @@ export class PathTree {
     if (!path) {
       throw new Error("Path cannot be empty")
     }
-    const tokens = this.parsePathTree(path)
-    let currentNode = node
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i]
-      currentNode[`${token.type}s`][token.token] ??= newNode()
-      switch (token.type) {
-        case "literal": {
-          currentNode = currentNode.literals[token.token]
-          break
-        }
-        case "param": {
-          if (token.token.length < 2) {
-            throw new Error(`Parameter token ${token.token} is too short in path ${path}`)
-          }
 
-          if (tokens[i - 1]?.type === "param" || tokens[i - 1]?.type === "wildcard") {
-            throw new Error(`Unexpected consecutive parameter tokens : ${token.token} in path ${path}`)
-          }
+    let states = [{ path, node, expandedFrom }]
+    let nextState: typeof states;
+    while (states.length) {
+      nextState = []
+      for (const { path, node, expandedFrom } of states) {
+        const tokens = this.parsePathTree(path)
+        let currentNode = node
+        for (let i = 0; i < tokens.length; i++) {
+          const token = tokens[i]
+          currentNode[`${token.type}s`][token.token] ??= newNode()
+          switch (token.type) {
+            case "literal": {
+              currentNode = currentNode.literals[token.token]
+              break
+            }
+            case "param": {
+              if (token.token.length < 2) {
+                throw new Error(`Parameter token ${token.token} is too short in path ${path}`)
+              }
 
-          currentNode = currentNode.params[token.token]
-          break
-        }
-        case "wildcard": {
-          if (token.token.length < 2) {
-            throw new Error(`Parameter token ${token.token} is too short in path ${path}`)
-          }
+              if (tokens[i - 1]?.type === "param" || tokens[i - 1]?.type === "wildcard") {
+                throw new Error(`Unexpected consecutive parameter tokens : ${token.token} in path ${path}`)
+              }
 
-          if (tokens[i - 1]?.type === "param" || tokens[i - 1]?.type === "wildcard") {
-            throw new Error(`Unexpected consecutive parameter tokens : ${token.token} in path ${path}`)
-          }
+              currentNode = currentNode.params[token.token]
+              break
+            }
+            case "wildcard": {
+              if (token.token.length < 2) {
+                throw new Error(`Parameter token ${token.token} is too short in path ${path}`)
+              }
 
-          currentNode = currentNode.wildcards[token.token]
-          break
+              if (tokens[i - 1]?.type === "param" || tokens[i - 1]?.type === "wildcard") {
+                throw new Error(`Unexpected consecutive parameter tokens : ${token.token} in path ${path}`)
+              }
+
+              currentNode = currentNode.wildcards[token.token]
+              break
+            }
+            case "group": {
+              const joined = [token.token.slice(1, -1), ...tokens.slice(i + 1).map(e => e.token)].join('')
+              nextState.push({
+                path: joined,
+                node: currentNode.groups[token.token],
+                expandedFrom: expandedFrom ?? path,
+              })
+              break
+            }
+          }
         }
-        case "group": {
-          const joined = [token.token.slice(1, -1), ...tokens.slice(i + 1).map(e => e.token)].join('')
-          this.setPattern(joined, currentNode.groups[token.token], expandedFrom ?? path)
-          break
-        }
+        currentNode.expandedFrom.push(expandedFrom ?? path)
       }
+
+      states = nextState
     }
-    currentNode.expandedFrom.push(expandedFrom ?? path)
   }
 
   collectLiterals(node: PathNode) {
@@ -119,94 +122,125 @@ export class PathTree {
     return finished
   }
 
-  *matchRecursive(path: string, root: PathNode = this.root, param: Record<string, string[]> = {}): Generator<MatchResult> {
-    for (const [token, node] of Object.entries(root.literals)) {
-      if (path === token) {
-        yield* node.expandedFrom.map(p => {
-          return { pattern: p, params: { ...param } }
-        })
-        continue
+  match(path: string): MatchResult[]
+  match(path: string, root: PathNode, param: Record<string, string[]>): MatchResult[]
+  match(path: string, root: PathNode = this.root, param: Record<string, string[]> = {}): MatchResult[] {
+    const results: MatchResult[] = []
+    let states = [
+      {
+        path,
+        root,
+        param,
       }
+    ]
+    let nextState: typeof states;
 
-      if (path.startsWith(token)) {
-        yield* this.matchRecursive(path.slice(token.length), node, { ...param })
-      }
-    }
+    while (states.length) {
+      nextState = []
+      for (const { path, root, param } of states) {
+        for (const [token, node] of Object.entries(root.literals)) {
+          if (path === token) {
+            const result = node.expandedFrom.map(p => {
+              return { pattern: p, params: { ...param } }
+            })
+            results.push(...result)
+            continue
+          }
 
-    for (const [token, node] of Object.entries(root.params)) {
-      // must only match literal of '/' next
-      const indexOfSlash = path.indexOf("/")
-      const index = indexOfSlash === -1 ? path.length : indexOfSlash
-      const paramValue = path.slice(0, index)
-      const newParam = {
-        ...param,
-        [token]: [...(param[token] ?? []), paramValue]
-      }
-
-      if (path.slice(index)) {
-        yield* this.matchRecursive(path.slice(index), node, newParam)
-      } else {
-        yield* node.expandedFrom.map(p => {
-          return { pattern: p, params: newParam }
-        })
-      }
-    }
-
-    for (const [token, node] of Object.entries(root.wildcards)) {
-      const nextLiterals = this.collectLiterals(node)
-      if (!nextLiterals.length) {
-        const newParam = {
-          ...param,
-          [token]: [...(param[token] ?? []), path]
+          if (path.startsWith(token)) {
+            nextState.push({
+              path: path.slice(token.length), root: node, param: { ...param }
+            })
+          }
         }
-        yield* node.expandedFrom.map(p => {
-          return { pattern: p, params: newParam }
-        })
-      } else {
-        for (const { startToken, lastNode } of nextLiterals) {
-          const index = path.indexOf(startToken)
-          if (index === -1) continue
+
+        for (const [token, node] of Object.entries(root.params)) {
+          // must only match literal of '/' next
+          const indexOfSlash = path.indexOf("/")
+          const index = indexOfSlash === -1 ? path.length : indexOfSlash
           const paramValue = path.slice(0, index)
           const newParam = {
             ...param,
             [token]: [...(param[token] ?? []), paramValue]
           }
 
-          const nextPath = path.slice(index + startToken.length)
-          if (nextPath) {
-            yield* this.matchRecursive(nextPath, lastNode, newParam)
+          if (path.slice(index)) {
+            nextState.push({
+              path: path.slice(index), root: node, param: newParam
+            })
           } else {
-            yield* lastNode.expandedFrom.map(p => {
+            const result = node.expandedFrom.map(p => {
               return { pattern: p, params: newParam }
             })
+            results.push(...result)
           }
         }
-        // Also check if the wildcard node itself is a terminal (has expandedFrom)
-        // This handles cases where the wildcard matches everything
-        if (node.expandedFrom.length) {
-          const newParam = {
-            ...param,
-            [token]: [...(param[token] ?? []), path]
+
+        for (const [token, node] of Object.entries(root.wildcards)) {
+          const nextLiterals = this.collectLiterals(node)
+          if (!nextLiterals.length) {
+            const newParam = {
+              ...param,
+              [token]: [...(param[token] ?? []), path]
+            }
+            const result = node.expandedFrom.map(p => {
+              return { pattern: p, params: newParam }
+            })
+            results.push(...result)
+          } else {
+            for (const { startToken, lastNode } of nextLiterals) {
+              const index = path.indexOf(startToken)
+              if (index === -1) continue
+              const paramValue = path.slice(0, index)
+              const newParam = {
+                ...param,
+                [token]: [...(param[token] ?? []), paramValue]
+              }
+
+              const nextPath = path.slice(index + startToken.length)
+              if (nextPath) {
+                nextState.push({
+                  path: nextPath, root: lastNode, param: newParam
+                })
+              } else {
+                const result = lastNode.expandedFrom.map(p => {
+                  return { pattern: p, params: newParam }
+                })
+                results.push(...result)
+              }
+            }
+            // Also check if the wildcard node itself is a terminal (has expandedFrom)
+            // This handles cases where the wildcard matches everything
+            if (node.expandedFrom.length) {
+              const newParam = {
+                ...param,
+                [token]: [...(param[token] ?? []), path]
+              }
+              const result = node.expandedFrom.map(p => {
+                return { pattern: p, params: newParam }
+              })
+              results.push(...result)
+            }
           }
-          yield* node.expandedFrom.map(p => {
-            return { pattern: p, params: newParam }
+        }
+
+
+        for (const [_, node] of Object.entries(root.groups)) {
+          nextState.push({
+            path: path,
+            root: node,
+            param: { ...param }
           })
         }
       }
+      states = nextState
     }
 
-
-    for (const [_, node] of Object.entries(root.groups)) {
-      yield* this.matchRecursive(path, node, { ...param })
-    }
+    return results
   }
 
-  match(path: string): MatchResult[] {
-    return Array.from(this.matchRecursive(path))
-  }
-
-
-  *parsePathIntoSegments(pathname: string): Generator<string> {
+  splitPath(pathname: string): string[] {
+    const result: string[] = []
     let lower = 0
     let upper = 0
     let depth = 0
@@ -221,19 +255,19 @@ export class PathTree {
       if (pathname[upper] === groupQuotation) {
         if (pathname[lower] !== paramDelimiter && pathname[lower] !== wildcardDelimiter) {
           if (pathname.slice(lower, upper)) {
-            yield pathname.slice(lower, upper)
+            result.push(pathname.slice(lower, upper))
           }
           lower = upper
         }
         do {
           upper++
         } while (upper < pathname.length && pathname[upper] !== groupQuotation)
-        yield pathname.slice(lower, ++upper)
+        result.push(pathname.slice(lower, ++upper))
         lower = upper
       } else if (pathname[upper] === groupStart) {
         if (depth === 0) {
           if (pathname.slice(lower, upper)) {
-            yield pathname.slice(lower, upper)
+            result.push(pathname.slice(lower, upper))
           }
           lower = upper
         }
@@ -242,20 +276,20 @@ export class PathTree {
         depth--
       } else if (depth === 0) {
         if (pathname[upper - 1] === groupEnd) {
-          yield pathname.slice(lower, upper)
+          result.push(pathname.slice(lower, upper))
           lower = upper
         }
 
         if (pathname[upper] === delimiter) {
           if (pathname.slice(lower, upper)) {
-            yield pathname.slice(lower, upper)
+            result.push(pathname.slice(lower, upper))
             lower = upper
           }
-          yield pathname.slice(lower, upper + 1)
+          result.push(pathname.slice(lower, upper + 1))
           lower = upper + 1
         } else if (pathname[upper] === paramDelimiter || pathname[upper] === wildcardDelimiter) {
           if (pathname.slice(lower, upper)) {
-            yield pathname.slice(lower, upper)
+            result.push(pathname.slice(lower, upper))
             lower = upper
           }
         }
@@ -265,12 +299,14 @@ export class PathTree {
 
     upper = Math.min(upper, pathname.length)
     if (lower < upper) {
-      yield pathname.slice(lower, upper)
+      result.push(pathname.slice(lower, upper))
     }
+
+    return result
   }
 
   parsePathTree(pathname: string, parent?: string): Token[] {
-    const splitted = this.parsePathIntoSegments(pathname)
+    const splitted = this.splitPath(pathname)
     const matched: Token[] = []
     for (const split of splitted) {
       if (split.startsWith("{")) {
