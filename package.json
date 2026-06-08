@@ -9,8 +9,11 @@
     "dist"
   ],
   "scripts": {
-    "test": "node --test",
-    "build": "tsgo -p tsconfig.build.json && node ./bin/playground.ts"
+    "test": "node --test --import ./tests/benchmarks/loader.ts",
+    "integration": "node --import ./tests/benchmarks/loader.ts ./tests/integration-report.ts",
+    "build": "tsgo -p tsconfig.build.json && node ./bin/playground.ts",
+    "benchmark:path-to-regexp": "node --import ./tests/benchmarks/loader.ts ./tests/benchmarks/path-to-regexp.benchmark.ts",
+    "benchmark:path-tree-matcher": "node --import ./tests/benchmarks/loader.ts ./tests/benchmarks/path-tree-matcher.benchmark.ts"
   },
   "repository": {
     "type": "git",

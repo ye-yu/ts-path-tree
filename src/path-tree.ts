@@ -26,13 +26,24 @@ function newNode(): PathNode {
 
 export class PathTree {
   root = newNode()
+  strict = true
 
   setPattern(path: string, node: PathNode = this.root, expandedFrom?: string) {
     if (!path) {
       throw new Error("Path cannot be empty")
     }
 
-    let states = [{ path, node, expandedFrom }]
+    let states: { path: string, node: PathNode, expandedFrom?: string }[] = []
+    if (this.strict) {
+      states.push({ path, node, expandedFrom })
+    } else {
+      path = path.startsWith('/') ? path.slice(0) : path
+      path = path.endsWith('/') ? path.slice(0, path.length - 1) : path
+      states.push({ path, node, expandedFrom })
+      states.push({ path: `/${path}`, node, expandedFrom })
+      states.push({ path: `/${path}/`, node, expandedFrom })
+      states.push({ path: `${path}/`, node, expandedFrom })
+    }
     let nextState: typeof states;
     while (states.length) {
       nextState = []
