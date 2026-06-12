@@ -213,6 +213,14 @@ describe("PathTree", () => {
         input: '/api/{*param}:next/',
         expected: ['/', 'api', '/', '{*param}', ':next', '/'],
       },
+      {
+        input: '/api/"hello\\"world"/',
+        expected: ['/', 'api', '/', '"hello\\"world"', '/'],
+      },
+      {
+        input: '/api/first-second',
+        expected: ['/', 'api', '/', 'first', '-', 'second']
+      }
     ]
 
     for (const { input, expected } of cases) {

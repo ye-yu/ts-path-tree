@@ -59,6 +59,7 @@ declare module "path-to-regexp" {
     export class TokenData {
         readonly tokens: Token[]
         readonly originalPath?: string
+        constructor(tokens: Token[], originalPath?: string)
     }
 
     /**

@@ -1,6 +1,6 @@
 {
   "name": "path-tree-matcher",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Build and match path trees with parameters, wildcards, and optional route segments.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

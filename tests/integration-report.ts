@@ -4,6 +4,8 @@ import * as path from "node:path"
 import * as cases from "path-to-regexp/cases.spec"
 import { PathTree } from "../src/index.ts";
 import { fileURLToPath } from "node:url";
+import { type Token as PathToRegexpToken, TokenData } from "path-to-regexp";
+import type { Token } from "../src/path-tree.ts";
 
 const filePath = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filePath)
@@ -16,6 +18,87 @@ type Result = {
   actual: string,
   passed: string,
 }
+
+function* flatPathToRegexpToken(tokens: PathToRegexpToken[]): Generator<string> {
+  for (const token of tokens) {
+    switch (token.type) {
+      case "group": {
+        yield* flatPathToRegexpToken(token.tokens)
+        break
+      }
+      case "param": {
+        yield `:${token.name}`
+        break
+      }
+      case "text": {
+        yield token.value
+        break
+      }
+      case "wildcard": {
+        yield `*${token.name}`
+        break
+      }
+    }
+  }
+}
+
+function toPathToRegexpToken(tokens: Token[]): PathToRegexpToken[] {
+  return tokens.map((token): PathToRegexpToken => {
+    switch (token.type) {
+      case "group": {
+        return {
+          type: "group",
+          tokens: toPathToRegexpToken(token.groups)
+        }
+      }
+      case "literal": {
+        return {
+          type: "text",
+          value: token.token
+        }
+      }
+      case "param": {
+        const sliced = token.token.slice(1)
+        return {
+          type: "param",
+          name: sliced.startsWith('"') && sliced.endsWith('"') ? sliced.slice(1, sliced.length - 1) : sliced
+        }
+      }
+      case "wildcard": {
+        const sliced = token.token.slice(1)
+        return {
+          type: "wildcard",
+          name: sliced.startsWith('"') && sliced.endsWith('"') ? sliced.slice(1, sliced.length - 1) : sliced
+        }
+      }
+    }
+  })
+}
+
+const parsePathTree = PathTree.prototype.parsePathTree.bind(PathTree.prototype);
+const parserTestResults = cases.PARSER_TESTS.map((unit) => {
+  if (unit.options) {
+    return {
+      pattern: unit.path,
+      input: unit.path,
+      expected: JSON.stringify(unit.expected),
+      actual: "path-to-regexp options is not yet supported",
+      passed: "ERROR"
+    } satisfies Result
+  }
+  const parseResult = parsePathTree(unit.path)
+  const pathToRegexpToken = new TokenData(toPathToRegexpToken(parseResult), unit.path)
+  const expected = unit.expected
+  const actual = pathToRegexpToken
+  return {
+    pattern: unit.path,
+    input: unit.path,
+    expected: JSON.stringify(unit.expected),
+    actual: JSON.stringify(actual),
+    passed: JSON.stringify(actual) === JSON.stringify(expected) ? "PASSED" : "FAILED"
+  } satisfies Result
+
+})
 
 function getPatterns(matchPattern: cases.MatchTestSet["path"]): string[] {
   const result: string[] = []
@@ -39,13 +122,14 @@ function getPatterns(matchPattern: cases.MatchTestSet["path"]): string[] {
   return result
 }
 
-const results = cases.MATCH_TESTS.flatMap((suite) => {
+const matchTestResults = cases.MATCH_TESTS.flatMap((suite) => {
   const patterns = getPatterns(suite.path)
   try {
     if (suite.options) {
-      throw new Error('path-to-regexp options is not yet supported in this test')
+      throw new Error('path-to-regexp options is not yet supported')
     }
     const root = new PathTree()
+    root.strict = false
     for (const pattern of patterns) {
       root.setPattern(pattern)
     }
@@ -106,7 +190,10 @@ const results = cases.MATCH_TESTS.flatMap((suite) => {
   }
 })
 
-const regressionResult = results.filter(e => e.passed === "PASSED").length / results.length
+const parserPassed = parserTestResults.filter(e => e.passed === "PASSED").length
+const matchPassed = matchTestResults.filter(e => e.passed === "PASSED").length
+const totalTests = parserTestResults.length + matchTestResults.length
+const totalResult = (matchPassed) / totalTests
 
 
 const percentageFormatter = new Intl.NumberFormat("en-US", {
@@ -115,21 +202,34 @@ const percentageFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2
 });
 
-const compatPercent = percentageFormatter.format(regressionResult)
+const compatPercent = percentageFormatter.format(totalResult)
+const parserPercent = percentageFormatter.format(parserPassed / parserTestResults.length)
+const matchPercent = percentageFormatter.format(matchPassed / matchTestResults.length)
 
 fs.writeFileSync(logPath, [
   `# path-to-regexp compat table`,
   '',
   `- API compabitility result: ${compatPercent}`,
+  `- Parser: ${parserPercent}`,
+  `- Matcher: ${matchPercent}`,
   ``,
-  `### Spec results`,
-  '| Pattern | Input | Expected | Actual | Passed |',
-  '|---------|-------|----------|--------|--------|',
-  ...results.toSorted((a, b) => {
+  `### Parser results`,
+  '| Input | Expected | Actual | Passed |',
+  '|-------|----------|--------|--------|',
+  ...parserTestResults.toSorted((a, b) => {
     const aPassed = a.passed === "PASSED" ? 1 : 0;
     const bPassed = b.passed === "PASSED" ? 1 : 0;
     return bPassed - aPassed
-  }).map(e => `| \`${e.pattern}\` | \`${e.input}\` | \`${e.expected}\` | \`${e.actual}\` | **${e.passed}** |`)
+  }).map(e => `| \`${e.input}\` | \`${e.expected}\` | \`${e.actual}\` | **${e.passed}** |`),
+  '',
+  `### Matcher results`,
+  '| Pattern | Input | Expected | Actual | Passed |',
+  '|---------|-------|----------|--------|--------|',
+  ...matchTestResults.toSorted((a, b) => {
+    const aPassed = a.passed === "PASSED" ? 1 : 0;
+    const bPassed = b.passed === "PASSED" ? 1 : 0;
+    return bPassed - aPassed
+  }).map(e => `| \`${e.pattern}\` | \`${e.input}\` | \`${e.expected}\` | \`${e.actual}\` | **${e.passed}** |`),
 ].join('\n'))
 
 function someMatch(expected: any, candidates: any[]) {

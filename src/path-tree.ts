@@ -37,7 +37,7 @@ export class PathTree {
     if (this.strict) {
       states.push({ path, node, expandedFrom })
     } else {
-      path = path.startsWith('/') ? path.slice(0) : path
+      path = path.startsWith('/') ? path.slice(1) : path
       path = path.endsWith('/') ? path.slice(0, path.length - 1) : path
       states.push({ path, node, expandedFrom })
       states.push({ path: `/${path}`, node, expandedFrom })
@@ -255,12 +255,13 @@ export class PathTree {
     let lower = 0
     let upper = 0
     let depth = 0
-    const delimiter = '/'
+    const delimiters = new Set(['/', '\\', '-', '.'])
     const groupStart = '{'
     const groupEnd = '}'
     const paramDelimiter = ':'
     const wildcardDelimiter = '*'
     const groupQuotation = '"'
+    const escapeChar = '\\'
 
     while (upper < pathname.length) {
       if (pathname[upper] === groupQuotation) {
@@ -272,8 +273,10 @@ export class PathTree {
         }
         do {
           upper++
-        } while (upper < pathname.length && pathname[upper] !== groupQuotation)
-        result.push(pathname.slice(lower, ++upper))
+        } while (upper < pathname.length && (pathname[upper] !== groupQuotation || pathname[upper - 1] === escapeChar))
+        const sliced = pathname.slice(lower, ++upper)
+        const escaped = sliced.replaceAll(/\\./g, (e) => e.slice(1))
+        result.push(escaped)
         lower = upper
       } else if (pathname[upper] === groupStart) {
         if (depth === 0) {
@@ -283,7 +286,7 @@ export class PathTree {
           lower = upper
         }
         depth++
-      } else if (pathname[upper] === groupEnd) {
+      } else if (pathname[upper] === groupEnd && pathname[upper - 1] !== escapeChar) {
         depth--
       } else if (depth === 0) {
         if (pathname[upper - 1] === groupEnd) {
@@ -291,7 +294,7 @@ export class PathTree {
           lower = upper
         }
 
-        if (pathname[upper] === delimiter) {
+        if (delimiters.has(pathname[upper])) {
           if (pathname.slice(lower, upper)) {
             result.push(pathname.slice(lower, upper))
             lower = upper
@@ -313,7 +316,18 @@ export class PathTree {
       result.push(pathname.slice(lower, upper))
     }
 
-    return result
+    const escapedResult: string[] = []
+    while (result.length) {
+      const shifted = result.shift()!
+      if (shifted === '\\') {
+        const nextShifted = result.shift()!
+        if (nextShifted) escapedResult.push(nextShifted)
+      } else if (shifted) {
+        escapedResult.push(shifted)
+      }
+    }
+
+    return escapedResult
   }
 
   parsePathTree(pathname: string, parent?: string): Token[] {
