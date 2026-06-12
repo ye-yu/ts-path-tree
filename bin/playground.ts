@@ -12,13 +12,24 @@ const { values } = util.parseArgs({
   }
 })
 
+function* chunkStr(str: string, length: number): Generator<string> {
+  while (str.length) {
+    yield str.slice(0, length)
+    str = str.slice(length)
+  }
+}
+
 const htmlPath = './bin/index.html'
 function getHtml() {
   const sourcePath = './src/path-tree.ts'
   const sourceCode = fs.readFileSync(sourcePath, 'utf-8')
 
   const stripped = module.stripTypeScriptTypes(sourceCode)
-  const escaped = `\`${stripped.replaceAll('`', '\\`').replaceAll('$', '\\$')}\``
+  const escaped = [
+    '[',
+    ...chunkStr(btoa(stripped), 128).map((e) => `"${e}",`),
+    ']',
+  ].join('\n')
   const htmlTemplate = fs.readFileSync(htmlPath, 'utf8')
   const html = htmlTemplate.replaceAll('/* code */', escaped)
   return html

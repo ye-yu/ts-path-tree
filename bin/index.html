@@ -238,7 +238,7 @@ const matches = tree.match("/api/users/123")
   <script type="module">
     // Load your stripped module dynamically
     const code = /* code */; 
-    const blob = new Blob([code], { type: "application/javascript" });
+    const blob = new Blob([atob(code.join(''))], { type: "application/javascript" });
     const url = URL.createObjectURL(blob);
     const { PathTree } = await import(url);
 

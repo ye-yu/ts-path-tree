@@ -237,402 +237,144 @@ const matches = tree.match("/api/users/123")
 
   <script type="module">
     // Load your stripped module dynamically
-    const code = `                   
-                                                 
-                                                     
-                                      
-                                     
-
-                                                                               
-
-                        
-                                     
-                                   
-                                      
-                                   
-                         
- 
-
-function newNode()           {
-  return {
-    literals: {},
-    params: {},
-    wildcards: {},
-    groups: {},
-    expandedFrom: [],
-  }
-}
-
-export class PathTree {
-  root = newNode()
-  strict = true
-
-  setPattern(path        , node           = this.root, expandedFrom         ) {
-    if (!path) {
-      throw new Error("Path cannot be empty")
-    }
-
-    let states                                                            = []
-    if (this.strict) {
-      states.push({ path, node, expandedFrom })
-    } else {
-      path = path.startsWith('/') ? path.slice(1) : path
-      path = path.endsWith('/') ? path.slice(0, path.length - 1) : path
-      states.push({ path, node, expandedFrom })
-      states.push({ path: \`/\${path}\`, node, expandedFrom })
-      states.push({ path: \`/\${path}/\`, node, expandedFrom })
-      states.push({ path: \`\${path}/\`, node, expandedFrom })
-    }
-    let nextState               ;
-    while (states.length) {
-      nextState = []
-      for (const { path, node, expandedFrom } of states) {
-        const tokens = this.parsePathTree(path)
-        let currentNode = node
-        for (let i = 0; i < tokens.length; i++) {
-          const token = tokens[i]
-          currentNode[\`\${token.type}s\`][token.token] ??= newNode()
-          switch (token.type) {
-            case "literal": {
-              currentNode = currentNode.literals[token.token]
-              break
-            }
-            case "param": {
-              if (token.token.length < 2) {
-                throw new Error(\`Parameter token \${token.token} is too short in path \${path}\`)
-              }
-
-              if (tokens[i - 1]?.type === "param" || tokens[i - 1]?.type === "wildcard") {
-                throw new Error(\`Unexpected consecutive parameter tokens : \${token.token} in path \${path}\`)
-              }
-
-              currentNode = currentNode.params[token.token]
-              break
-            }
-            case "wildcard": {
-              if (token.token.length < 2) {
-                throw new Error(\`Parameter token \${token.token} is too short in path \${path}\`)
-              }
-
-              if (tokens[i - 1]?.type === "param" || tokens[i - 1]?.type === "wildcard") {
-                throw new Error(\`Unexpected consecutive parameter tokens : \${token.token} in path \${path}\`)
-              }
-
-              currentNode = currentNode.wildcards[token.token]
-              break
-            }
-            case "group": {
-              const joined = [token.token.slice(1, -1), ...tokens.slice(i + 1).map(e => e.token)].join('')
-              nextState.push({
-                path: joined,
-                node: currentNode.groups[token.token],
-                expandedFrom: expandedFrom ?? path,
-              })
-              break
-            }
-          }
-        }
-        currentNode.expandedFrom.push(expandedFrom ?? path)
-      }
-
-      states = nextState
-    }
-  }
-
-  collectLiterals(node          ) {
-    let toIterate                                                                = Object.entries(node.literals).map(([token, node]) => ({
-      startToken: token,
-      lastNode: node,
-    }))
-
-    let iterateNext                                                               
-    const finished                                                                = []
-
-    while (toIterate.length) {
-      iterateNext = []
-      for (const c of toIterate) {
-        for (const [token, node] of Object.entries(c.lastNode.literals)) {
-          iterateNext.push({
-            startToken: c.startToken + token,
-            lastNode: node
-          })
-        }
-
-        if (
-          Object.entries(c.lastNode.params).length
-          || Object.entries(c.lastNode.wildcards).length
-          || Object.entries(c.lastNode.groups).length
-          || c.lastNode.expandedFrom.length) {
-          finished.push({ ...c })
-        }
-      }
-      toIterate = iterateNext
-    }
-
-    return finished
-  }
-
-                                    
-                                                                                     
-  match(path        , root           = this.root, param                           = {})                {
-    const results                = []
-    let states = [
-      {
-        path,
-        root,
-        param,
-      }
-    ]
-    let nextState               ;
-
-    while (states.length) {
-      nextState = []
-      for (const { path, root, param } of states) {
-        for (const [token, node] of Object.entries(root.literals)) {
-          if (path === token) {
-            const result = node.expandedFrom.map(p => {
-              return { pattern: p, params: { ...param } }
-            })
-            results.push(...result)
-            continue
-          }
-
-          if (path.startsWith(token)) {
-            nextState.push({
-              path: path.slice(token.length), root: node, param: { ...param }
-            })
-          }
-        }
-
-        for (const [token, node] of Object.entries(root.params)) {
-          // must only match literal of '/' next
-          const indexOfSlash = path.indexOf("/")
-          const index = indexOfSlash === -1 ? path.length : indexOfSlash
-          const paramValue = path.slice(0, index)
-          const newParam = {
-            ...param,
-            [token]: [...(param[token] ?? []), paramValue]
-          }
-
-          if (path.slice(index)) {
-            nextState.push({
-              path: path.slice(index), root: node, param: newParam
-            })
-          } else {
-            const result = node.expandedFrom.map(p => {
-              return { pattern: p, params: newParam }
-            })
-            results.push(...result)
-          }
-        }
-
-        for (const [token, node] of Object.entries(root.wildcards)) {
-          const nextLiterals = this.collectLiterals(node)
-          if (!nextLiterals.length) {
-            const newParam = {
-              ...param,
-              [token]: [...(param[token] ?? []), path]
-            }
-            const result = node.expandedFrom.map(p => {
-              return { pattern: p, params: newParam }
-            })
-            results.push(...result)
-          } else {
-            for (const { startToken, lastNode } of nextLiterals) {
-              const index = path.indexOf(startToken)
-              if (index === -1) continue
-              const paramValue = path.slice(0, index)
-              const newParam = {
-                ...param,
-                [token]: [...(param[token] ?? []), paramValue]
-              }
-
-              const nextPath = path.slice(index + startToken.length)
-              if (nextPath) {
-                nextState.push({
-                  path: nextPath, root: lastNode, param: newParam
-                })
-              } else {
-                const result = lastNode.expandedFrom.map(p => {
-                  return { pattern: p, params: newParam }
-                })
-                results.push(...result)
-              }
-            }
-            // Also check if the wildcard node itself is a terminal (has expandedFrom)
-            // This handles cases where the wildcard matches everything
-            if (node.expandedFrom.length) {
-              const newParam = {
-                ...param,
-                [token]: [...(param[token] ?? []), path]
-              }
-              const result = node.expandedFrom.map(p => {
-                return { pattern: p, params: newParam }
-              })
-              results.push(...result)
-            }
-          }
-        }
-
-
-        for (const [_, node] of Object.entries(root.groups)) {
-          nextState.push({
-            path: path,
-            root: node,
-            param: { ...param }
-          })
-        }
-      }
-      states = nextState
-    }
-
-    return results
-  }
-
-  splitPath(pathname        )           {
-    const result           = []
-    let lower = 0
-    let upper = 0
-    let depth = 0
-    const delimiters = new Set(['/', '\\', '-', '.'])
-    const groupStart = '{'
-    const groupEnd = '}'
-    const paramDelimiter = ':'
-    const wildcardDelimiter = '*'
-    const groupQuotation = '"'
-    const escapeChar = '\\'
-
-    while (upper < pathname.length) {
-      if (pathname[upper] === groupQuotation) {
-        if (pathname[lower] !== paramDelimiter && pathname[lower] !== wildcardDelimiter) {
-          if (pathname.slice(lower, upper)) {
-            result.push(pathname.slice(lower, upper))
-          }
-          lower = upper
-        }
-        do {
-          upper++
-        } while (upper < pathname.length && (pathname[upper] !== groupQuotation || pathname[upper - 1] === escapeChar))
-        const sliced = pathname.slice(lower, ++upper)
-        const escaped = sliced.replaceAll(/\\./g, (e) => e.slice(1))
-        result.push(escaped)
-        lower = upper
-      } else if (pathname[upper] === groupStart) {
-        if (depth === 0) {
-          if (pathname.slice(lower, upper)) {
-            result.push(pathname.slice(lower, upper))
-          }
-          lower = upper
-        }
-        depth++
-      } else if (pathname[upper] === groupEnd && pathname[upper - 1] !== escapeChar) {
-        depth--
-      } else if (depth === 0) {
-        if (pathname[upper - 1] === groupEnd) {
-          result.push(pathname.slice(lower, upper))
-          lower = upper
-        }
-
-        if (delimiters.has(pathname[upper])) {
-          if (pathname.slice(lower, upper)) {
-            result.push(pathname.slice(lower, upper))
-            lower = upper
-          }
-          result.push(pathname.slice(lower, upper + 1))
-          lower = upper + 1
-        } else if (pathname[upper] === paramDelimiter || pathname[upper] === wildcardDelimiter) {
-          if (pathname.slice(lower, upper)) {
-            result.push(pathname.slice(lower, upper))
-            lower = upper
-          }
-        }
-      }
-      upper++
-    }
-
-    upper = Math.min(upper, pathname.length)
-    if (lower < upper) {
-      result.push(pathname.slice(lower, upper))
-    }
-
-    const escapedResult           = []
-    while (result.length) {
-      const shifted = result.shift() 
-      if (shifted === '\\') {
-        const nextShifted = result.shift() 
-        if (nextShifted) escapedResult.push(nextShifted)
-      } else if (shifted) {
-        escapedResult.push(shifted)
-      }
-    }
-
-    return escapedResult
-  }
-
-  parsePathTree(pathname        , parent         )          {
-    const splitted = this.splitPath(pathname)
-    const matched          = []
-    for (const split of splitted) {
-      if (split.startsWith("{")) {
-        if (!split.endsWith("}")) {
-          throw new Error(\`Unterminated group of \${split} in path \${parent ?? pathname}\`)
-        }
-        const group = split.slice(1, -1)
-        matched.push({ token: split, type: "group", groups: this.parsePathTree(group, parent ?? pathname) })
-        continue
-      }
-
-      if (split.startsWith(":")) {
-        if (split.includes('*')) {
-          throw new Error(\`Unexpected token * of \${split}... in path \${parent ?? pathname}\`)
-        }
-
-        const [_, ...tokens] = split.split(':')
-        if (tokens.length > 1) {
-          throw new Error(\`Unexpected next tokens : of \${split} in path \${parent ?? pathname}\`)
-        }
-
-        if (!split.slice(1)) {
-          throw new Error(\`Missing label of \${split} in path \${parent ?? pathname}\`)
-        }
-
-        if (matched.at(-1)?.token === "param" || matched.at(-1)?.token === "wildcard") {
-          throw new Error(\`Unexpected next tokens : of \${split} in path \${parent ?? pathname}\`)
-        }
-
-        matched.push({ type: "param", token: split })
-        continue
-      }
-
-      if (split.includes('*')) {
-        if (split.includes(':')) {
-          throw new Error(\`Unexpected token : of \${split}... in path \${parent ?? pathname}\`)
-        }
-
-        const [_, ...wildcards] = split.split('*')
-        if (wildcards.length > 1) {
-          throw new Error(\`Unexpected next token * of \${split}... in path \${parent ?? pathname}\`)
-        }
-
-        if (!split.slice(1)) {
-          throw new Error(\`Missing lable of \${split} in path \${parent ?? pathname}\`)
-        }
-
-        if (matched.at(-1)?.token === "param" || matched.at(-1)?.token === "wildcard") {
-          throw new Error(\`Unexpected next tokens : of \${split} in path \${parent ?? pathname}\`)
-        }
-
-        const wildcard = wildcards[0]
-        matched.push({ type: "wildcard", token: \`*\${wildcard}\` })
-        continue
-      }
-
-      matched.push({ token: split, type: "literal" })
-    }
-    return matched
-  }
-}`; 
-    const blob = new Blob([code], { type: "application/javascript" });
+    const code = [
+"ICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAg",
+"ICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+"ICAgICAgICAKCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAKCiAgICAg",
+"ICAgICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAg",
+"ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICAgICAgICAgICAgICAgICAgICAg",
+"ICAKIAoKZnVuY3Rpb24gbmV3Tm9kZSgpICAgICAgICAgICB7CiAgcmV0dXJuIHsKICAgIGxpdGVyYWxzOiB7fSwKICAgIHBhcmFtczoge30sCiAgICB3aWxkY2FyZHM6",
+"IHt9LAogICAgZ3JvdXBzOiB7fSwKICAgIGV4cGFuZGVkRnJvbTogW10sCiAgfQp9CgpleHBvcnQgY2xhc3MgUGF0aFRyZWUgewogIHJvb3QgPSBuZXdOb2RlKCkKICBz",
+"dHJpY3QgPSB0cnVlCgogIHNldFBhdHRlcm4ocGF0aCAgICAgICAgLCBub2RlICAgICAgICAgICA9IHRoaXMucm9vdCwgZXhwYW5kZWRGcm9tICAgICAgICAgKSB7CiAg",
+"ICBpZiAoIXBhdGgpIHsKICAgICAgdGhyb3cgbmV3IEVycm9yKCJQYXRoIGNhbm5vdCBiZSBlbXB0eSIpCiAgICB9CgogICAgbGV0IHN0YXRlcyAgICAgICAgICAgICAg",
+"ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgID0gW10KICAgIGlmICh0aGlzLnN0cmljdCkgewogICAgICBzdGF0ZXMucHVzaCh7IHBh",
+"dGgsIG5vZGUsIGV4cGFuZGVkRnJvbSB9KQogICAgfSBlbHNlIHsKICAgICAgcGF0aCA9IHBhdGguc3RhcnRzV2l0aCgnLycpID8gcGF0aC5zbGljZSgxKSA6IHBhdGgK",
+"ICAgICAgcGF0aCA9IHBhdGguZW5kc1dpdGgoJy8nKSA/IHBhdGguc2xpY2UoMCwgcGF0aC5sZW5ndGggLSAxKSA6IHBhdGgKICAgICAgc3RhdGVzLnB1c2goeyBwYXRo",
+"LCBub2RlLCBleHBhbmRlZEZyb20gfSkKICAgICAgc3RhdGVzLnB1c2goeyBwYXRoOiBgLyR7cGF0aH1gLCBub2RlLCBleHBhbmRlZEZyb20gfSkKICAgICAgc3RhdGVz",
+"LnB1c2goeyBwYXRoOiBgLyR7cGF0aH0vYCwgbm9kZSwgZXhwYW5kZWRGcm9tIH0pCiAgICAgIHN0YXRlcy5wdXNoKHsgcGF0aDogYCR7cGF0aH0vYCwgbm9kZSwgZXhw",
+"YW5kZWRGcm9tIH0pCiAgICB9CiAgICBsZXQgbmV4dFN0YXRlICAgICAgICAgICAgICAgOwogICAgd2hpbGUgKHN0YXRlcy5sZW5ndGgpIHsKICAgICAgbmV4dFN0YXRl",
+"ID0gW10KICAgICAgZm9yIChjb25zdCB7IHBhdGgsIG5vZGUsIGV4cGFuZGVkRnJvbSB9IG9mIHN0YXRlcykgewogICAgICAgIGNvbnN0IHRva2VucyA9IHRoaXMucGFy",
+"c2VQYXRoVHJlZShwYXRoKQogICAgICAgIGxldCBjdXJyZW50Tm9kZSA9IG5vZGUKICAgICAgICBmb3IgKGxldCBpID0gMDsgaSA8IHRva2Vucy5sZW5ndGg7IGkrKykg",
+"ewogICAgICAgICAgY29uc3QgdG9rZW4gPSB0b2tlbnNbaV0KICAgICAgICAgIGN1cnJlbnROb2RlW2Ake3Rva2VuLnR5cGV9c2BdW3Rva2VuLnRva2VuXSA/Pz0gbmV3",
+"Tm9kZSgpCiAgICAgICAgICBzd2l0Y2ggKHRva2VuLnR5cGUpIHsKICAgICAgICAgICAgY2FzZSAibGl0ZXJhbCI6IHsKICAgICAgICAgICAgICBjdXJyZW50Tm9kZSA9",
+"IGN1cnJlbnROb2RlLmxpdGVyYWxzW3Rva2VuLnRva2VuXQogICAgICAgICAgICAgIGJyZWFrCiAgICAgICAgICAgIH0KICAgICAgICAgICAgY2FzZSAicGFyYW0iOiB7",
+"CiAgICAgICAgICAgICAgaWYgKHRva2VuLnRva2VuLmxlbmd0aCA8IDIpIHsKICAgICAgICAgICAgICAgIHRocm93IG5ldyBFcnJvcihgUGFyYW1ldGVyIHRva2VuICR7",
+"dG9rZW4udG9rZW59IGlzIHRvbyBzaG9ydCBpbiBwYXRoICR7cGF0aH1gKQogICAgICAgICAgICAgIH0KCiAgICAgICAgICAgICAgaWYgKHRva2Vuc1tpIC0gMV0/LnR5",
+"cGUgPT09ICJwYXJhbSIgfHwgdG9rZW5zW2kgLSAxXT8udHlwZSA9PT0gIndpbGRjYXJkIikgewogICAgICAgICAgICAgICAgdGhyb3cgbmV3IEVycm9yKGBVbmV4cGVj",
+"dGVkIGNvbnNlY3V0aXZlIHBhcmFtZXRlciB0b2tlbnMgOiAke3Rva2VuLnRva2VufSBpbiBwYXRoICR7cGF0aH1gKQogICAgICAgICAgICAgIH0KCiAgICAgICAgICAg",
+"ICAgY3VycmVudE5vZGUgPSBjdXJyZW50Tm9kZS5wYXJhbXNbdG9rZW4udG9rZW5dCiAgICAgICAgICAgICAgYnJlYWsKICAgICAgICAgICAgfQogICAgICAgICAgICBj",
+"YXNlICJ3aWxkY2FyZCI6IHsKICAgICAgICAgICAgICBpZiAodG9rZW4udG9rZW4ubGVuZ3RoIDwgMikgewogICAgICAgICAgICAgICAgdGhyb3cgbmV3IEVycm9yKGBQ",
+"YXJhbWV0ZXIgdG9rZW4gJHt0b2tlbi50b2tlbn0gaXMgdG9vIHNob3J0IGluIHBhdGggJHtwYXRofWApCiAgICAgICAgICAgICAgfQoKICAgICAgICAgICAgICBpZiAo",
+"dG9rZW5zW2kgLSAxXT8udHlwZSA9PT0gInBhcmFtIiB8fCB0b2tlbnNbaSAtIDFdPy50eXBlID09PSAid2lsZGNhcmQiKSB7CiAgICAgICAgICAgICAgICB0aHJvdyBu",
+"ZXcgRXJyb3IoYFVuZXhwZWN0ZWQgY29uc2VjdXRpdmUgcGFyYW1ldGVyIHRva2VucyA6ICR7dG9rZW4udG9rZW59IGluIHBhdGggJHtwYXRofWApCiAgICAgICAgICAg",
+"ICAgfQoKICAgICAgICAgICAgICBjdXJyZW50Tm9kZSA9IGN1cnJlbnROb2RlLndpbGRjYXJkc1t0b2tlbi50b2tlbl0KICAgICAgICAgICAgICBicmVhawogICAgICAg",
+"ICAgICB9CiAgICAgICAgICAgIGNhc2UgImdyb3VwIjogewogICAgICAgICAgICAgIGNvbnN0IGpvaW5lZCA9IFt0b2tlbi50b2tlbi5zbGljZSgxLCAtMSksIC4uLnRv",
+"a2Vucy5zbGljZShpICsgMSkubWFwKGUgPT4gZS50b2tlbildLmpvaW4oJycpCiAgICAgICAgICAgICAgbmV4dFN0YXRlLnB1c2goewogICAgICAgICAgICAgICAgcGF0",
+"aDogam9pbmVkLAogICAgICAgICAgICAgICAgbm9kZTogY3VycmVudE5vZGUuZ3JvdXBzW3Rva2VuLnRva2VuXSwKICAgICAgICAgICAgICAgIGV4cGFuZGVkRnJvbTog",
+"ZXhwYW5kZWRGcm9tID8/IHBhdGgsCiAgICAgICAgICAgICAgfSkKICAgICAgICAgICAgICBicmVhawogICAgICAgICAgICB9CiAgICAgICAgICB9CiAgICAgICAgfQog",
+"ICAgICAgIGN1cnJlbnROb2RlLmV4cGFuZGVkRnJvbS5wdXNoKGV4cGFuZGVkRnJvbSA/PyBwYXRoKQogICAgICB9CgogICAgICBzdGF0ZXMgPSBuZXh0U3RhdGUKICAg",
+"IH0KICB9CgogIGNvbGxlY3RMaXRlcmFscyhub2RlICAgICAgICAgICkgewogICAgbGV0IHRvSXRlcmF0ZSAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+"ICAgICAgICAgICAgICAgICAgICAgICAgICAgICA9IE9iamVjdC5lbnRyaWVzKG5vZGUubGl0ZXJhbHMpLm1hcCgoW3Rva2VuLCBub2RlXSkgPT4gKHsKICAgICAgc3Rh",
+"cnRUb2tlbjogdG9rZW4sCiAgICAgIGxhc3ROb2RlOiBub2RlLAogICAgfSkpCgogICAgbGV0IGl0ZXJhdGVOZXh0ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+"ICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgCiAgICBjb25zdCBmaW5pc2hlZCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+"ICAgICAgICAgICAgICAgICAgICA9IFtdCgogICAgd2hpbGUgKHRvSXRlcmF0ZS5sZW5ndGgpIHsKICAgICAgaXRlcmF0ZU5leHQgPSBbXQogICAgICBmb3IgKGNvbnN0",
+"IGMgb2YgdG9JdGVyYXRlKSB7CiAgICAgICAgZm9yIChjb25zdCBbdG9rZW4sIG5vZGVdIG9mIE9iamVjdC5lbnRyaWVzKGMubGFzdE5vZGUubGl0ZXJhbHMpKSB7CiAg",
+"ICAgICAgICBpdGVyYXRlTmV4dC5wdXNoKHsKICAgICAgICAgICAgc3RhcnRUb2tlbjogYy5zdGFydFRva2VuICsgdG9rZW4sCiAgICAgICAgICAgIGxhc3ROb2RlOiBu",
+"b2RlCiAgICAgICAgICB9KQogICAgICAgIH0KCiAgICAgICAgaWYgKAogICAgICAgICAgT2JqZWN0LmVudHJpZXMoYy5sYXN0Tm9kZS5wYXJhbXMpLmxlbmd0aAogICAg",
+"ICAgICAgfHwgT2JqZWN0LmVudHJpZXMoYy5sYXN0Tm9kZS53aWxkY2FyZHMpLmxlbmd0aAogICAgICAgICAgfHwgT2JqZWN0LmVudHJpZXMoYy5sYXN0Tm9kZS5ncm91",
+"cHMpLmxlbmd0aAogICAgICAgICAgfHwgYy5sYXN0Tm9kZS5leHBhbmRlZEZyb20ubGVuZ3RoKSB7CiAgICAgICAgICBmaW5pc2hlZC5wdXNoKHsgLi4uYyB9KQogICAg",
+"ICAgIH0KICAgICAgfQogICAgICB0b0l0ZXJhdGUgPSBpdGVyYXRlTmV4dAogICAgfQoKICAgIHJldHVybiBmaW5pc2hlZAogIH0KCiAgICAgICAgICAgICAgICAgICAg",
+"ICAgICAgICAgICAgICAgIAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+"ICAgICAgCiAgbWF0Y2gocGF0aCAgICAgICAgLCByb290ICAgICAgICAgICA9IHRoaXMucm9vdCwgcGFyYW0gICAgICAgICAgICAgICAgICAgICAgICAgICA9IHt9KSAg",
+"ICAgICAgICAgICAgICB7CiAgICBjb25zdCByZXN1bHRzICAgICAgICAgICAgICAgID0gW10KICAgIGxldCBzdGF0ZXMgPSBbCiAgICAgIHsKICAgICAgICBwYXRoLAog",
+"ICAgICAgIHJvb3QsCiAgICAgICAgcGFyYW0sCiAgICAgIH0KICAgIF0KICAgIGxldCBuZXh0U3RhdGUgICAgICAgICAgICAgICA7CgogICAgd2hpbGUgKHN0YXRlcy5s",
+"ZW5ndGgpIHsKICAgICAgbmV4dFN0YXRlID0gW10KICAgICAgZm9yIChjb25zdCB7IHBhdGgsIHJvb3QsIHBhcmFtIH0gb2Ygc3RhdGVzKSB7CiAgICAgICAgZm9yIChj",
+"b25zdCBbdG9rZW4sIG5vZGVdIG9mIE9iamVjdC5lbnRyaWVzKHJvb3QubGl0ZXJhbHMpKSB7CiAgICAgICAgICBpZiAocGF0aCA9PT0gdG9rZW4pIHsKICAgICAgICAg",
+"ICAgY29uc3QgcmVzdWx0ID0gbm9kZS5leHBhbmRlZEZyb20ubWFwKHAgPT4gewogICAgICAgICAgICAgIHJldHVybiB7IHBhdHRlcm46IHAsIHBhcmFtczogeyAuLi5w",
+"YXJhbSB9IH0KICAgICAgICAgICAgfSkKICAgICAgICAgICAgcmVzdWx0cy5wdXNoKC4uLnJlc3VsdCkKICAgICAgICAgICAgY29udGludWUKICAgICAgICAgIH0KCiAg",
+"ICAgICAgICBpZiAocGF0aC5zdGFydHNXaXRoKHRva2VuKSkgewogICAgICAgICAgICBuZXh0U3RhdGUucHVzaCh7CiAgICAgICAgICAgICAgcGF0aDogcGF0aC5zbGlj",
+"ZSh0b2tlbi5sZW5ndGgpLCByb290OiBub2RlLCBwYXJhbTogeyAuLi5wYXJhbSB9CiAgICAgICAgICAgIH0pCiAgICAgICAgICB9CiAgICAgICAgfQoKICAgICAgICBm",
+"b3IgKGNvbnN0IFt0b2tlbiwgbm9kZV0gb2YgT2JqZWN0LmVudHJpZXMocm9vdC5wYXJhbXMpKSB7CiAgICAgICAgICAvLyBtdXN0IG9ubHkgbWF0Y2ggbGl0ZXJhbCBv",
+"ZiAnLycgbmV4dAogICAgICAgICAgY29uc3QgaW5kZXhPZlNsYXNoID0gcGF0aC5pbmRleE9mKCIvIikKICAgICAgICAgIGNvbnN0IGluZGV4ID0gaW5kZXhPZlNsYXNo",
+"ID09PSAtMSA/IHBhdGgubGVuZ3RoIDogaW5kZXhPZlNsYXNoCiAgICAgICAgICBjb25zdCBwYXJhbVZhbHVlID0gcGF0aC5zbGljZSgwLCBpbmRleCkKICAgICAgICAg",
+"IGNvbnN0IG5ld1BhcmFtID0gewogICAgICAgICAgICAuLi5wYXJhbSwKICAgICAgICAgICAgW3Rva2VuXTogWy4uLihwYXJhbVt0b2tlbl0gPz8gW10pLCBwYXJhbVZh",
+"bHVlXQogICAgICAgICAgfQoKICAgICAgICAgIGlmIChwYXRoLnNsaWNlKGluZGV4KSkgewogICAgICAgICAgICBuZXh0U3RhdGUucHVzaCh7CiAgICAgICAgICAgICAg",
+"cGF0aDogcGF0aC5zbGljZShpbmRleCksIHJvb3Q6IG5vZGUsIHBhcmFtOiBuZXdQYXJhbQogICAgICAgICAgICB9KQogICAgICAgICAgfSBlbHNlIHsKICAgICAgICAg",
+"ICAgY29uc3QgcmVzdWx0ID0gbm9kZS5leHBhbmRlZEZyb20ubWFwKHAgPT4gewogICAgICAgICAgICAgIHJldHVybiB7IHBhdHRlcm46IHAsIHBhcmFtczogbmV3UGFy",
+"YW0gfQogICAgICAgICAgICB9KQogICAgICAgICAgICByZXN1bHRzLnB1c2goLi4ucmVzdWx0KQogICAgICAgICAgfQogICAgICAgIH0KCiAgICAgICAgZm9yIChjb25z",
+"dCBbdG9rZW4sIG5vZGVdIG9mIE9iamVjdC5lbnRyaWVzKHJvb3Qud2lsZGNhcmRzKSkgewogICAgICAgICAgY29uc3QgbmV4dExpdGVyYWxzID0gdGhpcy5jb2xsZWN0",
+"TGl0ZXJhbHMobm9kZSkKICAgICAgICAgIGlmICghbmV4dExpdGVyYWxzLmxlbmd0aCkgewogICAgICAgICAgICBjb25zdCBuZXdQYXJhbSA9IHsKICAgICAgICAgICAg",
+"ICAuLi5wYXJhbSwKICAgICAgICAgICAgICBbdG9rZW5dOiBbLi4uKHBhcmFtW3Rva2VuXSA/PyBbXSksIHBhdGhdCiAgICAgICAgICAgIH0KICAgICAgICAgICAgY29u",
+"c3QgcmVzdWx0ID0gbm9kZS5leHBhbmRlZEZyb20ubWFwKHAgPT4gewogICAgICAgICAgICAgIHJldHVybiB7IHBhdHRlcm46IHAsIHBhcmFtczogbmV3UGFyYW0gfQog",
+"ICAgICAgICAgICB9KQogICAgICAgICAgICByZXN1bHRzLnB1c2goLi4ucmVzdWx0KQogICAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgZm9yIChjb25zdCB7IHN0",
+"YXJ0VG9rZW4sIGxhc3ROb2RlIH0gb2YgbmV4dExpdGVyYWxzKSB7CiAgICAgICAgICAgICAgY29uc3QgaW5kZXggPSBwYXRoLmluZGV4T2Yoc3RhcnRUb2tlbikKICAg",
+"ICAgICAgICAgICBpZiAoaW5kZXggPT09IC0xKSBjb250aW51ZQogICAgICAgICAgICAgIGNvbnN0IHBhcmFtVmFsdWUgPSBwYXRoLnNsaWNlKDAsIGluZGV4KQogICAg",
+"ICAgICAgICAgIGNvbnN0IG5ld1BhcmFtID0gewogICAgICAgICAgICAgICAgLi4ucGFyYW0sCiAgICAgICAgICAgICAgICBbdG9rZW5dOiBbLi4uKHBhcmFtW3Rva2Vu",
+"XSA/PyBbXSksIHBhcmFtVmFsdWVdCiAgICAgICAgICAgICAgfQoKICAgICAgICAgICAgICBjb25zdCBuZXh0UGF0aCA9IHBhdGguc2xpY2UoaW5kZXggKyBzdGFydFRv",
+"a2VuLmxlbmd0aCkKICAgICAgICAgICAgICBpZiAobmV4dFBhdGgpIHsKICAgICAgICAgICAgICAgIG5leHRTdGF0ZS5wdXNoKHsKICAgICAgICAgICAgICAgICAgcGF0",
+"aDogbmV4dFBhdGgsIHJvb3Q6IGxhc3ROb2RlLCBwYXJhbTogbmV3UGFyYW0KICAgICAgICAgICAgICAgIH0pCiAgICAgICAgICAgICAgfSBlbHNlIHsKICAgICAgICAg",
+"ICAgICAgIGNvbnN0IHJlc3VsdCA9IGxhc3ROb2RlLmV4cGFuZGVkRnJvbS5tYXAocCA9PiB7CiAgICAgICAgICAgICAgICAgIHJldHVybiB7IHBhdHRlcm46IHAsIHBh",
+"cmFtczogbmV3UGFyYW0gfQogICAgICAgICAgICAgICAgfSkKICAgICAgICAgICAgICAgIHJlc3VsdHMucHVzaCguLi5yZXN1bHQpCiAgICAgICAgICAgICAgfQogICAg",
+"ICAgICAgICB9CiAgICAgICAgICAgIC8vIEFsc28gY2hlY2sgaWYgdGhlIHdpbGRjYXJkIG5vZGUgaXRzZWxmIGlzIGEgdGVybWluYWwgKGhhcyBleHBhbmRlZEZyb20p",
+"CiAgICAgICAgICAgIC8vIFRoaXMgaGFuZGxlcyBjYXNlcyB3aGVyZSB0aGUgd2lsZGNhcmQgbWF0Y2hlcyBldmVyeXRoaW5nCiAgICAgICAgICAgIGlmIChub2RlLmV4",
+"cGFuZGVkRnJvbS5sZW5ndGgpIHsKICAgICAgICAgICAgICBjb25zdCBuZXdQYXJhbSA9IHsKICAgICAgICAgICAgICAgIC4uLnBhcmFtLAogICAgICAgICAgICAgICAg",
+"W3Rva2VuXTogWy4uLihwYXJhbVt0b2tlbl0gPz8gW10pLCBwYXRoXQogICAgICAgICAgICAgIH0KICAgICAgICAgICAgICBjb25zdCByZXN1bHQgPSBub2RlLmV4cGFu",
+"ZGVkRnJvbS5tYXAocCA9PiB7CiAgICAgICAgICAgICAgICByZXR1cm4geyBwYXR0ZXJuOiBwLCBwYXJhbXM6IG5ld1BhcmFtIH0KICAgICAgICAgICAgICB9KQogICAg",
+"ICAgICAgICAgIHJlc3VsdHMucHVzaCguLi5yZXN1bHQpCiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgICB9CgoKICAgICAgICBmb3IgKGNvbnN0IFtfLCBu",
+"b2RlXSBvZiBPYmplY3QuZW50cmllcyhyb290Lmdyb3VwcykpIHsKICAgICAgICAgIG5leHRTdGF0ZS5wdXNoKHsKICAgICAgICAgICAgcGF0aDogcGF0aCwKICAgICAg",
+"ICAgICAgcm9vdDogbm9kZSwKICAgICAgICAgICAgcGFyYW06IHsgLi4ucGFyYW0gfQogICAgICAgICAgfSkKICAgICAgICB9CiAgICAgIH0KICAgICAgc3RhdGVzID0g",
+"bmV4dFN0YXRlCiAgICB9CgogICAgcmV0dXJuIHJlc3VsdHMKICB9CgogIHNwbGl0UGF0aChwYXRobmFtZSAgICAgICAgKSAgICAgICAgICAgewogICAgY29uc3QgcmVz",
+"dWx0ICAgICAgICAgICA9IFtdCiAgICBsZXQgbG93ZXIgPSAwCiAgICBsZXQgdXBwZXIgPSAwCiAgICBsZXQgZGVwdGggPSAwCiAgICBjb25zdCBkZWxpbWl0ZXJzID0g",
+"bmV3IFNldChbJy8nLCAnXFwnLCAnLScsICcuJ10pCiAgICBjb25zdCBncm91cFN0YXJ0ID0gJ3snCiAgICBjb25zdCBncm91cEVuZCA9ICd9JwogICAgY29uc3QgcGFy",
+"YW1EZWxpbWl0ZXIgPSAnOicKICAgIGNvbnN0IHdpbGRjYXJkRGVsaW1pdGVyID0gJyonCiAgICBjb25zdCBncm91cFF1b3RhdGlvbiA9ICciJwogICAgY29uc3QgZXNj",
+"YXBlQ2hhciA9ICdcXCcKCiAgICB3aGlsZSAodXBwZXIgPCBwYXRobmFtZS5sZW5ndGgpIHsKICAgICAgaWYgKHBhdGhuYW1lW3VwcGVyXSA9PT0gZ3JvdXBRdW90YXRp",
+"b24pIHsKICAgICAgICBpZiAocGF0aG5hbWVbbG93ZXJdICE9PSBwYXJhbURlbGltaXRlciAmJiBwYXRobmFtZVtsb3dlcl0gIT09IHdpbGRjYXJkRGVsaW1pdGVyKSB7",
+"CiAgICAgICAgICBpZiAocGF0aG5hbWUuc2xpY2UobG93ZXIsIHVwcGVyKSkgewogICAgICAgICAgICByZXN1bHQucHVzaChwYXRobmFtZS5zbGljZShsb3dlciwgdXBw",
+"ZXIpKQogICAgICAgICAgfQogICAgICAgICAgbG93ZXIgPSB1cHBlcgogICAgICAgIH0KICAgICAgICBkbyB7CiAgICAgICAgICB1cHBlcisrCiAgICAgICAgfSB3aGls",
+"ZSAodXBwZXIgPCBwYXRobmFtZS5sZW5ndGggJiYgKHBhdGhuYW1lW3VwcGVyXSAhPT0gZ3JvdXBRdW90YXRpb24gfHwgcGF0aG5hbWVbdXBwZXIgLSAxXSA9PT0gZXNj",
+"YXBlQ2hhcikpCiAgICAgICAgY29uc3Qgc2xpY2VkID0gcGF0aG5hbWUuc2xpY2UobG93ZXIsICsrdXBwZXIpCiAgICAgICAgY29uc3QgZXNjYXBlZCA9IHNsaWNlZC5y",
+"ZXBsYWNlQWxsKC9cXC4vZywgKGUpID0+IGUuc2xpY2UoMSkpCiAgICAgICAgcmVzdWx0LnB1c2goZXNjYXBlZCkKICAgICAgICBsb3dlciA9IHVwcGVyCiAgICAgIH0g",
+"ZWxzZSBpZiAocGF0aG5hbWVbdXBwZXJdID09PSBncm91cFN0YXJ0KSB7CiAgICAgICAgaWYgKGRlcHRoID09PSAwKSB7CiAgICAgICAgICBpZiAocGF0aG5hbWUuc2xp",
+"Y2UobG93ZXIsIHVwcGVyKSkgewogICAgICAgICAgICByZXN1bHQucHVzaChwYXRobmFtZS5zbGljZShsb3dlciwgdXBwZXIpKQogICAgICAgICAgfQogICAgICAgICAg",
+"bG93ZXIgPSB1cHBlcgogICAgICAgIH0KICAgICAgICBkZXB0aCsrCiAgICAgIH0gZWxzZSBpZiAocGF0aG5hbWVbdXBwZXJdID09PSBncm91cEVuZCAmJiBwYXRobmFt",
+"ZVt1cHBlciAtIDFdICE9PSBlc2NhcGVDaGFyKSB7CiAgICAgICAgZGVwdGgtLQogICAgICB9IGVsc2UgaWYgKGRlcHRoID09PSAwKSB7CiAgICAgICAgaWYgKHBhdGhu",
+"YW1lW3VwcGVyIC0gMV0gPT09IGdyb3VwRW5kKSB7CiAgICAgICAgICByZXN1bHQucHVzaChwYXRobmFtZS5zbGljZShsb3dlciwgdXBwZXIpKQogICAgICAgICAgbG93",
+"ZXIgPSB1cHBlcgogICAgICAgIH0KCiAgICAgICAgaWYgKGRlbGltaXRlcnMuaGFzKHBhdGhuYW1lW3VwcGVyXSkpIHsKICAgICAgICAgIGlmIChwYXRobmFtZS5zbGlj",
+"ZShsb3dlciwgdXBwZXIpKSB7CiAgICAgICAgICAgIHJlc3VsdC5wdXNoKHBhdGhuYW1lLnNsaWNlKGxvd2VyLCB1cHBlcikpCiAgICAgICAgICAgIGxvd2VyID0gdXBw",
+"ZXIKICAgICAgICAgIH0KICAgICAgICAgIHJlc3VsdC5wdXNoKHBhdGhuYW1lLnNsaWNlKGxvd2VyLCB1cHBlciArIDEpKQogICAgICAgICAgbG93ZXIgPSB1cHBlciAr",
+"IDEKICAgICAgICB9IGVsc2UgaWYgKHBhdGhuYW1lW3VwcGVyXSA9PT0gcGFyYW1EZWxpbWl0ZXIgfHwgcGF0aG5hbWVbdXBwZXJdID09PSB3aWxkY2FyZERlbGltaXRl",
+"cikgewogICAgICAgICAgaWYgKHBhdGhuYW1lLnNsaWNlKGxvd2VyLCB1cHBlcikpIHsKICAgICAgICAgICAgcmVzdWx0LnB1c2gocGF0aG5hbWUuc2xpY2UobG93ZXIs",
+"IHVwcGVyKSkKICAgICAgICAgICAgbG93ZXIgPSB1cHBlcgogICAgICAgICAgfQogICAgICAgIH0KICAgICAgfQogICAgICB1cHBlcisrCiAgICB9CgogICAgdXBwZXIg",
+"PSBNYXRoLm1pbih1cHBlciwgcGF0aG5hbWUubGVuZ3RoKQogICAgaWYgKGxvd2VyIDwgdXBwZXIpIHsKICAgICAgcmVzdWx0LnB1c2gocGF0aG5hbWUuc2xpY2UobG93",
+"ZXIsIHVwcGVyKSkKICAgIH0KCiAgICBjb25zdCBlc2NhcGVkUmVzdWx0ICAgICAgICAgICA9IFtdCiAgICB3aGlsZSAocmVzdWx0Lmxlbmd0aCkgewogICAgICBjb25z",
+"dCBzaGlmdGVkID0gcmVzdWx0LnNoaWZ0KCkgCiAgICAgIGlmIChzaGlmdGVkID09PSAnXFwnKSB7CiAgICAgICAgY29uc3QgbmV4dFNoaWZ0ZWQgPSByZXN1bHQuc2hp",
+"ZnQoKSAKICAgICAgICBpZiAobmV4dFNoaWZ0ZWQpIGVzY2FwZWRSZXN1bHQucHVzaChuZXh0U2hpZnRlZCkKICAgICAgfSBlbHNlIGlmIChzaGlmdGVkKSB7CiAgICAg",
+"ICAgZXNjYXBlZFJlc3VsdC5wdXNoKHNoaWZ0ZWQpCiAgICAgIH0KICAgIH0KCiAgICByZXR1cm4gZXNjYXBlZFJlc3VsdAogIH0KCiAgcGFyc2VQYXRoVHJlZShwYXRo",
+"bmFtZSAgICAgICAgLCBwYXJlbnQgICAgICAgICApICAgICAgICAgIHsKICAgIGNvbnN0IHNwbGl0dGVkID0gdGhpcy5zcGxpdFBhdGgocGF0aG5hbWUpCiAgICBjb25z",
+"dCBtYXRjaGVkICAgICAgICAgID0gW10KICAgIGZvciAoY29uc3Qgc3BsaXQgb2Ygc3BsaXR0ZWQpIHsKICAgICAgaWYgKHNwbGl0LnN0YXJ0c1dpdGgoInsiKSkgewog",
+"ICAgICAgIGlmICghc3BsaXQuZW5kc1dpdGgoIn0iKSkgewogICAgICAgICAgdGhyb3cgbmV3IEVycm9yKGBVbnRlcm1pbmF0ZWQgZ3JvdXAgb2YgJHtzcGxpdH0gaW4g",
+"cGF0aCAke3BhcmVudCA/PyBwYXRobmFtZX1gKQogICAgICAgIH0KICAgICAgICBjb25zdCBncm91cCA9IHNwbGl0LnNsaWNlKDEsIC0xKQogICAgICAgIG1hdGNoZWQu",
+"cHVzaCh7IHRva2VuOiBzcGxpdCwgdHlwZTogImdyb3VwIiwgZ3JvdXBzOiB0aGlzLnBhcnNlUGF0aFRyZWUoZ3JvdXAsIHBhcmVudCA/PyBwYXRobmFtZSkgfSkKICAg",
+"ICAgICBjb250aW51ZQogICAgICB9CgogICAgICBpZiAoc3BsaXQuc3RhcnRzV2l0aCgiOiIpKSB7CiAgICAgICAgaWYgKHNwbGl0LmluY2x1ZGVzKCcqJykpIHsKICAg",
+"ICAgICAgIHRocm93IG5ldyBFcnJvcihgVW5leHBlY3RlZCB0b2tlbiAqIG9mICR7c3BsaXR9Li4uIGluIHBhdGggJHtwYXJlbnQgPz8gcGF0aG5hbWV9YCkKICAgICAg",
+"ICB9CgogICAgICAgIGNvbnN0IFtfLCAuLi50b2tlbnNdID0gc3BsaXQuc3BsaXQoJzonKQogICAgICAgIGlmICh0b2tlbnMubGVuZ3RoID4gMSkgewogICAgICAgICAg",
+"dGhyb3cgbmV3IEVycm9yKGBVbmV4cGVjdGVkIG5leHQgdG9rZW5zIDogb2YgJHtzcGxpdH0gaW4gcGF0aCAke3BhcmVudCA/PyBwYXRobmFtZX1gKQogICAgICAgIH0K",
+"CiAgICAgICAgaWYgKCFzcGxpdC5zbGljZSgxKSkgewogICAgICAgICAgdGhyb3cgbmV3IEVycm9yKGBNaXNzaW5nIGxhYmVsIG9mICR7c3BsaXR9IGluIHBhdGggJHtw",
+"YXJlbnQgPz8gcGF0aG5hbWV9YCkKICAgICAgICB9CgogICAgICAgIGlmIChtYXRjaGVkLmF0KC0xKT8udG9rZW4gPT09ICJwYXJhbSIgfHwgbWF0Y2hlZC5hdCgtMSk/",
+"LnRva2VuID09PSAid2lsZGNhcmQiKSB7CiAgICAgICAgICB0aHJvdyBuZXcgRXJyb3IoYFVuZXhwZWN0ZWQgbmV4dCB0b2tlbnMgOiBvZiAke3NwbGl0fSBpbiBwYXRo",
+"ICR7cGFyZW50ID8/IHBhdGhuYW1lfWApCiAgICAgICAgfQoKICAgICAgICBtYXRjaGVkLnB1c2goeyB0eXBlOiAicGFyYW0iLCB0b2tlbjogc3BsaXQgfSkKICAgICAg",
+"ICBjb250aW51ZQogICAgICB9CgogICAgICBpZiAoc3BsaXQuaW5jbHVkZXMoJyonKSkgewogICAgICAgIGlmIChzcGxpdC5pbmNsdWRlcygnOicpKSB7CiAgICAgICAg",
+"ICB0aHJvdyBuZXcgRXJyb3IoYFVuZXhwZWN0ZWQgdG9rZW4gOiBvZiAke3NwbGl0fS4uLiBpbiBwYXRoICR7cGFyZW50ID8/IHBhdGhuYW1lfWApCiAgICAgICAgfQoK",
+"ICAgICAgICBjb25zdCBbXywgLi4ud2lsZGNhcmRzXSA9IHNwbGl0LnNwbGl0KCcqJykKICAgICAgICBpZiAod2lsZGNhcmRzLmxlbmd0aCA+IDEpIHsKICAgICAgICAg",
+"IHRocm93IG5ldyBFcnJvcihgVW5leHBlY3RlZCBuZXh0IHRva2VuICogb2YgJHtzcGxpdH0uLi4gaW4gcGF0aCAke3BhcmVudCA/PyBwYXRobmFtZX1gKQogICAgICAg",
+"IH0KCiAgICAgICAgaWYgKCFzcGxpdC5zbGljZSgxKSkgewogICAgICAgICAgdGhyb3cgbmV3IEVycm9yKGBNaXNzaW5nIGxhYmxlIG9mICR7c3BsaXR9IGluIHBhdGgg",
+"JHtwYXJlbnQgPz8gcGF0aG5hbWV9YCkKICAgICAgICB9CgogICAgICAgIGlmIChtYXRjaGVkLmF0KC0xKT8udG9rZW4gPT09ICJwYXJhbSIgfHwgbWF0Y2hlZC5hdCgt",
+"MSk/LnRva2VuID09PSAid2lsZGNhcmQiKSB7CiAgICAgICAgICB0aHJvdyBuZXcgRXJyb3IoYFVuZXhwZWN0ZWQgbmV4dCB0b2tlbnMgOiBvZiAke3NwbGl0fSBpbiBw",
+"YXRoICR7cGFyZW50ID8/IHBhdGhuYW1lfWApCiAgICAgICAgfQoKICAgICAgICBjb25zdCB3aWxkY2FyZCA9IHdpbGRjYXJkc1swXQogICAgICAgIG1hdGNoZWQucHVz",
+"aCh7IHR5cGU6ICJ3aWxkY2FyZCIsIHRva2VuOiBgKiR7d2lsZGNhcmR9YCB9KQogICAgICAgIGNvbnRpbnVlCiAgICAgIH0KCiAgICAgIG1hdGNoZWQucHVzaCh7IHRv",
+"a2VuOiBzcGxpdCwgdHlwZTogImxpdGVyYWwiIH0pCiAgICB9CiAgICByZXR1cm4gbWF0Y2hlZAogIH0KfQ==",
+]; 
+    const blob = new Blob([atob(code.join(''))], { type: "application/javascript" });
     const url = URL.createObjectURL(blob);
     const { PathTree } = await import(url);
 
