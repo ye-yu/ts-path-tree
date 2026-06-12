@@ -41,6 +41,8 @@ for (const { pattern, params } of matches) {
 - named parameter: `/:id`
 - wildcard: `/*rest`
 - optional group: `{/segment}`
+- segment grouping: `/"group"-next` yields `/`, `"group"`, and `-next`
+- escape syntax: `/"hello\\"world"` yields `/`, `"hello"world"` (`\\` is removed)
 
 ### Syntax notes
 - Invalid consecutive params: `/users/:id:action`
